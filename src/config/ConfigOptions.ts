@@ -106,6 +106,43 @@ export interface ConfigOptions {
   app_prompt?: boolean;
 
   /**
+   * URL of the registration proxy service for guest account creation.
+   * When set, guest registration bypasses UIA and uses the server-side
+   * proxy instead, which signs requests with a shared secret that never
+   * leaves the server.
+   */
+  guest_registration_url?: string;
+
+  /**
+   * Branding and identity configuration. All fields are optional so the
+   * source ships with neutral defaults that fall back to upstream Element
+   * Call's branding. Deployments override these values at runtime via
+   * config.json without modifying source.
+   */
+  branding?: {
+    /** Product name shown in titles, aria-labels, and log lines. */
+    product_name?: string;
+    /** URL of a logo asset to render on branded screens. */
+    logo_url?: string;
+    /** Link target for the home-page CTA. */
+    website_url?: string;
+    /** URL to a privacy policy. The consent line is hidden when unset. */
+    privacy_policy_url?: string;
+    /** Anchor text for the license footer (e.g. operator name). */
+    footer_text?: string;
+    /** Anchor href for the license footer. */
+    footer_url?: string;
+    /** Public source code URL (AGPL §13 source offer). */
+    source_code_url?: string;
+    /** Matrix state event type for scheduled meeting metadata. */
+    meeting_event_type?: string;
+    /** Localpart prefix for the admin-api bot user. */
+    bot_user_prefix?: string;
+    /** Minutes before scheduled start to allow joining. Defaults to 5. */
+    early_join_minutes?: number;
+  };
+
+  /**
    * These are low level options that are used to configure the MatrixRTC session.
    * Take care when changing these options.
    */

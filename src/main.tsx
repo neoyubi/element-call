@@ -37,7 +37,9 @@ setLKLogExtension((level, msg, context) => {
   global.mx_rage_logger.log(level, "livekit", msg, context);
 });
 
-logger.info(`Element Call ${import.meta.env.VITE_APP_VERSION || "dev"}`);
+logger.info(
+  `${import.meta.env.VITE_PRODUCT_NAME || "Element Call"} ${import.meta.env.VITE_APP_VERSION || "dev"}`,
+);
 
 const root = createRoot(document.getElementById("root")!);
 

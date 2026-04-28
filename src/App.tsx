@@ -20,7 +20,6 @@ import { logger } from "matrix-js-sdk/lib/logger";
 
 import { HomePage } from "./home/HomePage";
 import { LoginPage } from "./auth/LoginPage";
-import { RegisterPage } from "./auth/RegisterPage";
 import { RoomPage } from "./room/RoomPage";
 import { ClientProvider } from "./ClientContext";
 import { ErrorPage, LoadingPage } from "./FullScreenView";
@@ -32,6 +31,7 @@ import { type AppViewModel } from "./state/AppViewModel";
 import { MediaDevicesContext } from "./MediaDevicesContext";
 import { getUrlParams, HeaderStyle } from "./UrlParams";
 import { AppBar } from "./AppBar";
+import { LicenseFooter } from "./LicenseFooter";
 
 const SentryRoute = Sentry.withSentryReactRouterV7Routing(Route);
 
@@ -43,13 +43,12 @@ const BackgroundProvider: FC<SimpleProviderProps> = ({ children }) => {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    let backgroundImage = "";
-    if (!["/login", "/register"].includes(pathname) && !widget) {
-      backgroundImage = "var(--background-gradient)";
+    const body = document.getElementsByTagName("body")[0];
+    if (!["/login"].includes(pathname) && !widget) {
+      body.classList.add("aurora-bg");
+    } else {
+      body.classList.remove("aurora-bg");
     }
-
-    document.getElementsByTagName("body")[0].style.backgroundImage =
-      backgroundImage;
   }, [pathname]);
 
   return <>{children}</>;
@@ -88,7 +87,7 @@ export const App: FC<Props> = ({ vm }) => {
             <Routes>
               <SentryRoute path="/" element={<HomePage />} />
               <SentryRoute path="/login" element={<LoginPage />} />
-              <SentryRoute path="/register" element={<RegisterPage />} />
+              {/* /register route removed - team accounts created via Synapse admin */}
               <SentryRoute path="*" element={<RoomPage />} />
             </Routes>
           </Sentry.ErrorBoundary>
@@ -110,6 +109,7 @@ export const App: FC<Props> = ({ vm }) => {
               ) : (
                 content
               )}
+              {!widget && <LicenseFooter />}
             </Suspense>
           </TooltipProvider>
         </ThemeProvider>

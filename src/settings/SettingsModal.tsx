@@ -15,7 +15,6 @@ import { Modal } from "../Modal";
 import styles from "./SettingsModal.module.css";
 import { type Tab, TabContainer } from "../tabs/Tabs";
 import { ProfileSettingsTab } from "./ProfileSettingsTab";
-import { FeedbackSettingsTab } from "./FeedbackSettingsTab";
 import { iosDeviceMenu$ } from "../state/MediaDevices";
 import { useMediaDevices } from "../MediaDevicesContext";
 import { widget } from "../widget";
@@ -30,8 +29,8 @@ import { Slider } from "../Slider";
 import { DeviceSelection } from "./DeviceSelection";
 import { useTrackProcessor } from "../livekit/TrackProcessorContext";
 import { DeveloperSettingsTab } from "./DeveloperSettingsTab";
+import { LicenseSettingsTab } from "./LicenseSettingsTab";
 import { FieldRow, InputField } from "../input/Input";
-import { useSubmitRageshake } from "./submit-rageshake";
 import { useUrlParams } from "../UrlParams";
 import { useBehavior } from "../useBehavior";
 
@@ -40,8 +39,8 @@ type SettingsTab =
   | "video"
   | "profile"
   | "preferences"
-  | "feedback"
   | "more"
+  | "license"
   | "developer";
 
 interface Props {
@@ -107,7 +106,6 @@ export const SettingsModal: FC<Props> = ({
   const [soundVolumeRaw, setSoundVolumeRaw] = useState(soundVolume);
   const [showDeveloperSettingsTab] = useSetting(developerMode);
 
-  const { available: isRageshakeAvailable } = useSubmitRageshake();
 
   // For controlled devices, we will not show the input section:
   // Controlled media devices are used on mobile platforms, where input and output are grouped into
@@ -199,10 +197,10 @@ export const SettingsModal: FC<Props> = ({
     content: <ProfileSettingsTab client={client} />,
   };
 
-  const feedbackTab: Tab<SettingsTab> = {
-    key: "feedback",
-    name: t("settings.feedback_tab_title"),
-    content: <FeedbackSettingsTab roomId={roomId} />,
+  const licenseTab: Tab<SettingsTab> = {
+    key: "license",
+    name: t("common.license", "License"),
+    content: <LicenseSettingsTab />,
   };
 
   const developerTab: Tab<SettingsTab> = {
@@ -220,11 +218,7 @@ export const SettingsModal: FC<Props> = ({
   const tabs = [audioTab, videoTab];
   if (widget === null) tabs.push(profileTab);
   tabs.push(preferencesTab);
-  if (isRageshakeAvailable || import.meta.env.VITE_PACKAGE === "full") {
-    // for full package we want to show the analytics consent checkbox
-    // even if rageshake is not available
-    tabs.push(feedbackTab);
-  }
+  tabs.push(licenseTab);
   if (showDeveloperSettingsTab) tabs.push(developerTab);
 
   return (

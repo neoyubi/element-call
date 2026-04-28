@@ -69,7 +69,7 @@ export const FeedbackSettingsTab: FC<Props> = ({ roomId }) => {
 
   // in the embedded package the widget host is responsible for analytics consent
   const analyticsConsentBlock =
-    import.meta.env.VITE_PACKAGE === "embedded" ? null : (
+    import.meta.env.VITE_PACKAGE === "embedded" || !setOptInAnalytics ? null : (
       <>
         <h4>{t("common.analytics")}</h4>
         <FieldRow>

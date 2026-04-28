@@ -30,6 +30,11 @@ Please see LICENSE in the repository root for full details.
   text-decoration: none;
 }
 
+.headerLogo svg {
+  height: 44px;
+  width: auto;
+}
+
 .leftNav.hideMobile {
   display: none;
 }

@@ -34,7 +34,7 @@ layer(compound);
   --stopgap-background-85: rgba(255, 255, 255, 0.85);
   --stopgap-bgColor3: #444;
 
-  --cpd-color-border-accent: var(--cpd-color-green-800);
+  --cpd-color-border-accent: #0166FF;
   /* The distance to inset non-full-width content from the edge of the window
   along the inline axis. This ramps up from 16px for typical mobile windows, to
   96px for typical desktop windows. */
@@ -56,22 +56,50 @@ layer(compound);
 }
 
 .cpd-theme-dark {
-  --cpd-color-border-accent: var(--cpd-color-green-1100);
+  --cpd-color-border-accent: #4B94FF;
   --stopgap-color-on-solid-accent: var(--cpd-color-text-primary);
   --stopgap-background-85: rgba(16, 19, 23, 0.85);
 }
 
 body {
   background-color: var(--cpd-color-bg-canvas-default);
-  background-size: calc(max(1440px, 100vw)) calc(max(800px, 100vh));
-  background-repeat: no-repeat;
-  background-position: center;
   color: var(--cpd-color-text-primary);
   color-scheme: dark;
   margin: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
+}
+
+body.aurora-bg {
+  background-image: var(--background-gradient);
+  background-size: calc(max(1440px, 100vw)) calc(max(800px, 100vh));
+  background-repeat: no-repeat;
+  background-position: center;
+  animation: aurora-drift 18s ease-in-out infinite;
+}
+
+@keyframes aurora-drift {
+  0% {
+    background-position: center center;
+    background-size: calc(max(1440px, 100vw)) calc(max(800px, 100vh));
+  }
+  25% {
+    background-position: calc(50% + 30px) calc(50% - 15px);
+    background-size: calc(max(1480px, calc(100vw + 40px))) calc(max(830px, calc(100vh + 30px)));
+  }
+  50% {
+    background-position: calc(50% - 20px) calc(50% + 20px);
+    background-size: calc(max(1460px, calc(100vw + 20px))) calc(max(820px, calc(100vh + 20px)));
+  }
+  75% {
+    background-position: calc(50% + 15px) calc(50% + 10px);
+    background-size: calc(max(1470px, calc(100vw + 30px))) calc(max(840px, calc(100vh + 40px)));
+  }
+  100% {
+    background-position: center center;
+    background-size: calc(max(1440px, 100vw)) calc(max(800px, 100vh));
+  }
 }
 
 /* This prohibits the view to scroll for pages smaller than 122px in width

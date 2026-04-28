@@ -78,18 +78,18 @@ export const CallEndedView: FC<Props> = ({
     [endedCallId, navigate, isPasswordlessUser, confineToRoom, starRating],
   );
 
-  const createAccountDialog = isPasswordlessUser && (
+  const guestFarewellDialog = isPasswordlessUser && (
     <div className={styles.callEndedContent}>
-      <Trans i18nKey="call_ended_view.create_account_prompt">
-        <p>Why not finish by setting up a password to keep your account?</p>
-        <p>
-          You'll be able to keep your name and set an avatar for use on future
-          calls
-        </p>
-      </Trans>
-      <LinkButton className={styles.callEndedButton} to="/register">
-        {t("call_ended_view.create_account_button")}
-      </LinkButton>
+      <Text size="md" className={styles.farewell}>
+        {t("call_ended_view.guest_farewell", {
+          brand: import.meta.env.VITE_PRODUCT_NAME || "Element Call",
+        })}
+      </Text>
+      {!confineToRoom && (
+        <LinkButton className={styles.callEndedButton} to="/">
+          {t("return_home_button")}
+        </LinkButton>
+      )}
     </div>
   );
 
@@ -144,7 +144,7 @@ export const CallEndedView: FC<Props> = ({
       <div className={styles.container}>
         <main className={styles.main}>
           <Heading size="xl" weight="semibold" className={styles.headline}>
-            {surveySubmitted
+            {surveySubmitted || !PosthogAnalytics.instance.isEnabled()
               ? t("call_ended_view.headline", { displayName })
               : t("call_ended_view.headline", { displayName }) +
                 "\n" +
@@ -153,7 +153,7 @@ export const CallEndedView: FC<Props> = ({
           {(!surveySubmitted || confineToRoom) &&
           PosthogAnalytics.instance.isEnabled()
             ? qualitySurveyDialog
-            : createAccountDialog}
+            : guestFarewellDialog}
         </main>
         {!confineToRoom && (
           <Text className={styles.footer}>
