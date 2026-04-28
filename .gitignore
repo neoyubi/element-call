@@ -9,6 +9,8 @@ dist-ssr
 public/config.json
 backend/synapse_tmp/*
 backend/synapse_tmp_othersite/*
+backend/synapse_calldev/
+backend/calldev_homeserver.yaml
 /coverage
 config.json
 
@@ -25,8 +27,23 @@ yarn-error.log
 /.links.disabled.yaml
 /.links.temp-disabled.yaml
 
+# Local dev/deployment overrides
+CLAUDE.md
+DEPLOYMENT.md
+config/config.calldev.json
+docker-compose.calldev.yml
+
 # Playwright
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# AI Agent Work (ephemeral)
+agents/
+
+# Internal deployment (not for public)
+scripts/push.sh
+config/config.prod.json
+config/branding/
+Dockerfile.prod
