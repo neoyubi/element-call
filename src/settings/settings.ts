@@ -124,6 +124,11 @@ export const alwaysShowIphoneEarpiece = new Setting<boolean>(
   false,
 );
 
+export const showMeetingsCalendar = new Setting<boolean>(
+  "show-meetings-calendar",
+  true,
+);
+
 export enum MatrixRTCMode {
   Legacy = "legacy",
   Compatibility = "compatibility",

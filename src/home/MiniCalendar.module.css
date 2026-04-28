@@ -1,0 +1,101 @@
+.calendar {
+  width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.headerTitle {
+  color: var(--cpd-color-text-primary);
+}
+
+.navButtons {
+  display: flex;
+  gap: 4px;
+}
+
+.weekDays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.weekDay {
+  text-align: center;
+  font-size: 11px;
+  color: var(--cpd-color-text-secondary);
+  padding: 4px 0;
+  user-select: none;
+}
+
+.days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0;
+  border-radius: 6px;
+  cursor: pointer;
+  min-height: 32px;
+  background: none;
+  border: none;
+  color: var(--cpd-color-text-primary);
+  font-size: 13px;
+  position: relative;
+}
+
+.day:hover {
+  background-color: var(--cpd-color-bg-subtle-secondary);
+}
+
+.empty {
+  cursor: default;
+}
+
+.empty:hover {
+  background: none;
+}
+
+.today {
+  background-color: var(--cpd-color-bg-action-primary-rest);
+  color: var(--cpd-color-text-on-solid-primary);
+  font-weight: 600;
+}
+
+.today:hover {
+  background-color: var(--cpd-color-bg-action-primary-hovered);
+  color: var(--cpd-color-text-on-solid-primary);
+}
+
+.selected {
+  outline: 2px solid var(--cpd-color-border-interactive-primary);
+  outline-offset: -2px;
+}
+
+.hasMeeting::after {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: var(--cpd-color-icon-accent-tertiary);
+  position: absolute;
+  bottom: 2px;
+}
+
+.otherMonth {
+  color: var(--cpd-color-text-disabled);
+}
