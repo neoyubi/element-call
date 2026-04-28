@@ -29,10 +29,9 @@
     "title": "Select app"
   },
   "call_ended_view": {
-    "create_account_button": "Create account",
-    "create_account_prompt": "<0>Why not finish by setting up a password to keep your account?</0><1>You'll be able to keep your name and set an avatar for use on future calls</1>",
     "feedback_done": "<0>Thanks for your feedback!</0>",
     "feedback_prompt": "<0>We'd love to hear your feedback so we can improve your experience.</0>",
+    "guest_farewell": "We hope you had a productive meeting. Thank you for using {{brand}}.",
     "headline": "{{displayName}}, your call has ended.",
     "not_now_button": "Not now, return to home screen",
     "reconnect_button": "Reconnect",
@@ -103,7 +102,7 @@
   "error": {
     "call_is_not_supported": "Call is not supported",
     "call_not_found": "Call not found",
-    "call_not_found_description": "<0>That link doesn't appear to belong to any existing call. Check that you have the right link, or <2>create a new one</2>.</0>",
+    "call_not_found_description": "That link or code doesn't appear to belong to any existing call. Please check that you have the correct link or code and try again.",
     "connection_lost": "Connection lost",
     "connection_lost_description": "You were disconnected from the call.",
     "e2ee_unsupported": "Incompatible browser",
@@ -130,7 +129,9 @@
     "call_ended_heading": "Call ended",
     "knock_reject_body": "Your request to join was declined.",
     "knock_reject_heading": "Access denied",
-    "reason": "Reason: {{reason}}"
+    "reason": "Reason: {{reason}}",
+    "room_closed_body": "This room has been closed by the host.",
+    "room_closed_heading": "Room closed"
   },
   "handset": {
     "overlay_back_button": "Back to Speaker Mode",
@@ -141,8 +142,32 @@
   "header_label": "Element Call Home",
   "header_participants_label": "Participants",
   "invite_modal": {
+    "code_copied_toast": "Code copied to clipboard",
+    "copy_code": "Copy meeting code",
     "link_copied_toast": "Link copied to clipboard",
+    "meeting_code": "Meeting code",
     "title": "Invite to this call"
+  },
+  "knock_requests": {
+    "approve": "Approve",
+    "close_room": "Close room to requests",
+    "close_room_hint": "Rejects all pending requests and prevents new ones",
+    "count_one": "{{count}} waiting",
+    "count_other": "{{count}} waiting",
+    "empty": "No pending requests",
+    "notify": "Someone is asking to join",
+    "notify_named": "{{name}} is asking to join",
+    "reject": "Decline",
+    "title": "Join Requests"
+  },
+  "landing": {
+    "heading": "{{brand}}",
+    "join_button": "Join",
+    "join_code_placeholder": "Enter 4-letter code",
+    "join_link_placeholder": "Paste meeting link",
+    "sign_in": "Team sign in",
+    "tab_code": "Join with code",
+    "tab_link": "Paste link"
   },
   "join_existing_call_modal": {
     "join_button": "Yes, join call",
@@ -158,6 +183,21 @@
     "leave_button": "Back to recents",
     "waiting_for_invite": "Request sent! Waiting for permission to join…"
   },
+  "meetings": {
+    "cancel": "Cancel",
+    "count_one": "{{count}} upcoming meeting",
+    "count_other": "{{count}} upcoming meetings",
+    "date_at": "{{date}} at {{time}}",
+    "delete": "Delete",
+    "delete_meeting": "Delete meeting",
+    "hide_calendar": "Hide calendar",
+    "in_progress": "In progress",
+    "show_calendar": "Show calendar",
+    "starts_in": "Starts in {{time}}",
+    "today_at": "Today at {{time}}",
+    "tomorrow_at": "Tomorrow at {{time}}",
+    "upcoming": "Upcoming Meetings"
+  },
   "log_in": "Log In",
   "logging_in": "Logging in…",
   "login_auth_links": "<0>Create an account</0> Or <2>Access as a guest</2>",
@@ -168,6 +208,8 @@
   "microphone_on": "Microphone on",
   "mute_microphone_button_label": "Mute microphone",
   "participant_count_one": "{{count, number}}",
+  "privacy_policy": "Privacy Policy",
+  "privacy_policy_consent": "By joining the call, you agree to our <2>Privacy Policy</2> and the handling of your data as described therein.",
   "participant_count_other": "{{count, number}}",
   "qr_code": "QR Code",
   "rageshake_button_error_caption": "Retry sending logs",
@@ -190,6 +232,21 @@
   "register_confirm_password_label": "Confirm password",
   "register_heading": "Create your account",
   "return_home_button": "Return to home screen",
+  "room_status": {
+    "close": "Close room",
+    "closed": "Closed",
+    "delete": "Delete room",
+    "reopen": "Reopen room"
+  },
+  "room_code": {
+    "copied": "Code copied",
+    "hide": "Hide code",
+    "label": "Room code",
+    "regenerate": "New code",
+    "reveal": "Reveal code",
+    "seconds_left": "{{seconds}}s left",
+    "tap_to_reveal": "Tap to reveal"
+  },
   "room_auth_view_continue_button": "Continue",
   "room_auth_view_ssla_caption": "By clicking \"Join call now\", you agree to our <2>Software and Services License Agreement (SSLA)</2>",
   "screenshare_button_label": "Share screen",

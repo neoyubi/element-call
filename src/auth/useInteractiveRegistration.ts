@@ -21,6 +21,7 @@ import { widget } from "../widget";
 
 export const useInteractiveRegistration = (
   oldClient?: MatrixClient,
+  enabled = true,
 ): {
   privacyPolicyUrl?: string;
   recaptchaKey?: string;
@@ -47,7 +48,7 @@ export const useInteractiveRegistration = (
   }
 
   useEffect(() => {
-    if (widget) return;
+    if (widget || !enabled) return;
     // An empty registerRequest is used to get the privacy policy and recaptcha key.
     authClient.current!.registerRequest({}).catch((error) => {
       setPrivacyPolicyUrl(
@@ -55,7 +56,7 @@ export const useInteractiveRegistration = (
       );
       setRecaptchaKey(error.data?.params["m.login.recaptcha"]?.public_key);
     });
-  }, []);
+  }, [enabled]);
 
   const register = useCallback(
     async (

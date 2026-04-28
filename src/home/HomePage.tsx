@@ -27,7 +27,10 @@ export const HomePage: FC = () => {
     return <ErrorPage widget={widget} error={clientState.error} />;
   } else {
     return clientState.authenticated ? (
-      <RegisteredView client={clientState.authenticated.client} />
+      <RegisteredView
+        client={clientState.authenticated.client}
+        isPasswordlessUser={clientState.authenticated.isPasswordlessUser}
+      />
     ) : (
       <UnauthenticatedView />
     );

@@ -414,7 +414,10 @@ export const GroupCallView: FC<Props> = ({
     () => setInviteModalOpen(true),
     [setInviteModalOpen],
   );
-  const onShareClick = joinRule === JoinRule.Public ? onShareClickFn : null;
+  const onShareClick =
+    joinRule === JoinRule.Public || joinRule === JoinRule.Knock
+      ? onShareClickFn
+      : null;
 
   if (!isE2EESupportedBrowser() && e2eeSystem.kind !== E2eeType.NONE) {
     // If we have a encryption system but the browser does not support it.

@@ -16,7 +16,6 @@ import {
 } from "matrix-js-sdk";
 import { type ISyncStateData, type SyncState } from "matrix-js-sdk/lib/sync";
 import { logger } from "matrix-js-sdk/lib/logger";
-import { secureRandomBase64Url } from "matrix-js-sdk/lib/randomstring";
 import { sleep } from "matrix-js-sdk/lib/utils";
 
 import type { ICreateClientOpts, MatrixClient, Room } from "matrix-js-sdk";
@@ -27,7 +26,14 @@ import { E2eeType } from "../e2ee/e2eeType";
 import {
   type EncryptionSystem,
   saveKeyForRoom,
+  saveKeyMaterialForAlias,
 } from "../e2ee/sharedKeyManagement";
+import {
+  ROOM_CODE_CHARS,
+  generateKeyMaterial,
+  deriveSharedKey,
+  formatRotatingCode,
+} from "../e2ee/deriveKeyFromCode";
 
 export const fallbackICEServerAllowed =
   import.meta.env.VITE_FALLBACK_STUN_ALLOWED === "true";
@@ -180,8 +186,12 @@ export function roomAliasLocalpartFromRoomName(roomName: string): string {
     .toLowerCase();
 }
 
-function fullAliasFromRoomName(roomName: string, client: MatrixClient): string {
-  return `#${roomAliasLocalpartFromRoomName(roomName)}:${client.getDomain()}`;
+export function generateRoomCode(): string {
+  let code = "";
+  for (let i = 0; i < 4; i++) {
+    code += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)];
+  }
+  return code;
 }
 
 /**
@@ -212,6 +222,9 @@ interface CreateRoomResult {
   roomId: string;
   alias?: string;
   password?: string;
+  roomCode: string;
+  extendedCode?: string;
+  keyMaterial?: string;
 }
 
 /**
@@ -230,73 +243,97 @@ export async function createRoom(
   e2ee: E2eeType,
 ): Promise<CreateRoomResult> {
   logger.log(`Creating room for group call`);
-  const createPromise = client.createRoom({
-    visibility: Visibility.Private,
-    preset: Preset.PublicChat,
-    name,
-    room_alias_name: e2ee ? undefined : roomAliasLocalpartFromRoomName(name),
-    power_level_content_override: {
-      invite: 100,
-      kick: 100,
-      ban: 100,
-      redact: 50,
-      state_default: 0,
-      events_default: 0,
-      users_default: 0,
-      events: {
-        "m.room.power_levels": 100,
-        "m.room.history_visibility": 100,
-        "m.room.tombstone": 100,
-        "m.room.encryption": 100,
-        "m.room.name": 50,
-        "m.room.message": 0,
-        "m.room.encrypted": 50,
-        "m.sticker": 50,
-        "org.matrix.msc3401.call.member": 0,
-      },
-      users: {
-        [client.getUserId()!]: 100,
-      },
-    },
-  });
 
-  // Wait for the room to arrive
-  const roomId = await new Promise<string>((resolve, reject) => {
-    createPromise.catch((e) => {
-      reject(e);
-      cleanUp();
-    });
+  let roomCode = "";
+  let createResult: { room_id: string } | undefined;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    roomCode = generateRoomCode();
+    try {
+      createResult = await client.createRoom({
+        visibility: Visibility.Private,
+        preset: Preset.PublicChat,
+        name,
+        room_alias_name: roomCode,
+        initial_state: [
+          {
+            type: "m.room.join_rules",
+            state_key: "",
+            content: { join_rule: "knock" },
+          },
+        ],
+        power_level_content_override: {
+          invite: 100,
+          kick: 100,
+          ban: 100,
+          redact: 50,
+          state_default: 0,
+          events_default: 0,
+          users_default: 0,
+          events: {
+            "m.room.power_levels": 100,
+            "m.room.history_visibility": 100,
+            "m.room.tombstone": 100,
+            "m.room.encryption": 100,
+            "m.room.join_rules": 100,
+            "m.room.name": 50,
+            "m.room.message": 0,
+            "m.room.encrypted": 50,
+            "m.sticker": 50,
+            "org.matrix.msc3401.call.member": 0,
+          },
+          users: {
+            [client.getUserId()!]: 100,
+          },
+        },
+      });
+      break;
+    } catch (e: unknown) {
+      const matrixErr = e as { errcode?: string };
+      if (matrixErr.errcode === "M_ROOM_IN_USE" && attempt < 4) continue;
+      throw e;
+    }
+  }
+
+  // Wait for the room to arrive via sync
+  const targetRoomId = createResult!.room_id;
+  const roomId = await new Promise<string>((resolve) => {
+    // Check if the room is already known
+    const existingRoom = client.getRoom(targetRoomId);
+    if (existingRoom) {
+      resolve(targetRoomId);
+      return;
+    }
 
     const onRoom = (room: Room): void => {
-      createPromise.then(
-        (result) => {
-          if (room.roomId === result.room_id) {
-            resolve(room.roomId);
-            cleanUp();
-          }
-        },
-        (e) => {
-          logger.error("Failed to wait for the room to arrive", e);
-        },
-      );
-    };
-
-    const cleanUp = (): void => {
-      client.off(ClientEvent.Room, onRoom);
+      if (room.roomId === targetRoomId) {
+        client.off(ClientEvent.Room, onRoom);
+        resolve(targetRoomId);
+      }
     };
     client.on(ClientEvent.Room, onRoom);
   });
 
+  const alias = `#${roomCode}:${client.getDomain()}`;
+
   let password: string | undefined;
+  let extendedCode: string | undefined;
+  let keyMat: string | undefined;
   if (e2ee == E2eeType.SHARED_KEY) {
-    password = secureRandomBase64Url(16);
+    keyMat = generateKeyMaterial();
+    password = await deriveSharedKey(keyMat, alias);
     saveKeyForRoom(roomId, password);
+    saveKeyMaterialForAlias(alias, keyMat);
+    extendedCode = formatRotatingCode(roomCode, keyMat);
   }
 
   return {
     roomId,
-    alias: e2ee ? undefined : fullAliasFromRoomName(name, client),
+    alias,
     password,
+    roomCode,
+    extendedCode,
+    keyMaterial: keyMat,
   };
 }
 
@@ -304,35 +341,38 @@ export async function createRoom(
  * Returns an absolute URL to that will load Element Call with the given room
  * @param roomId ID of the room
  * @param encryptionSystem what encryption (or EncryptionSystem.Unencrypted) the room uses
- * @param roomName Name of the room
+ * @param roomNameOrCode Room name (kebab-cased) or 4-letter room code
  * @param viaServers Optional list of servers to include as 'via' parameters in the URL
  */
 export function getAbsoluteRoomUrl(
   roomId: string,
   encryptionSystem: EncryptionSystem,
-  roomName?: string,
+  roomNameOrCode?: string,
   viaServers?: string[],
 ): string {
   return `${window.location.protocol}//${
     window.location.host
-  }${getRelativeRoomUrl(roomId, encryptionSystem, roomName, viaServers)}`;
+  }${getRelativeRoomUrl(roomId, encryptionSystem, roomNameOrCode, viaServers)}`;
 }
 
 /**
  * Returns a relative URL to that will load Element Call with the given room
  * @param roomId ID of the room
  * @param encryptionSystem what encryption (or EncryptionSystem.Unencrypted) the room uses
- * @param roomName Name of the room
+ * @param roomNameOrCode Room name (kebab-cased) or 4-letter room code
  * @param viaServers Optional list of servers to include as 'via' parameters in the URL
  */
 export function getRelativeRoomUrl(
   roomId: string,
   encryptionSystem: EncryptionSystem,
-  roomName?: string,
+  roomNameOrCode?: string,
   viaServers?: string[],
 ): string {
-  const roomPart = roomName
-    ? "/" + roomAliasLocalpartFromRoomName(roomName)
+  // If it looks like a 4-letter room code (all uppercase letters), use it directly
+  const isRoomCode = roomNameOrCode && /^[A-Z]{4,16}$/.test(roomNameOrCode);
+  // For room codes, use only the first 4 chars (alias portion) in the URL path
+  const roomPart = roomNameOrCode
+    ? "/" + (isRoomCode ? roomNameOrCode.slice(0, 4) : roomAliasLocalpartFromRoomName(roomNameOrCode))
     : "";
   return `/room/#${roomPart}?${generateUrlSearchParams(roomId, encryptionSystem, viaServers).toString()}`;
 }

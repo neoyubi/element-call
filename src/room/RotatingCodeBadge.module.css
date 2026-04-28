@@ -1,0 +1,143 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cpd-space-1x);
+  padding: var(--cpd-space-1x) var(--cpd-space-2x);
+  border-radius: var(--cpd-space-2x);
+  background: var(--cpd-color-bg-subtle-primary);
+  margin-inline-start: var(--cpd-space-3x);
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.badge:hover {
+  background: var(--cpd-color-bg-subtle-secondary);
+}
+
+.badge.disabled {
+  cursor: default;
+}
+
+.badge.disabled:hover {
+  background: var(--cpd-color-bg-subtle-primary);
+}
+
+/* Clickable code area */
+.codeButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cpd-space-2x);
+  padding: 0 var(--cpd-space-1x);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.codeButton:disabled {
+  cursor: default;
+}
+
+/* Code text */
+.code {
+  font-family: monospace;
+  font-size: var(--cpd-font-size-body-sm);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--cpd-color-text-primary);
+  transition:
+    filter 0.3s ease,
+    opacity 0.2s ease;
+}
+
+.code.blurred {
+  filter: blur(6px);
+  user-select: none;
+}
+
+/* Fade transition when code rotates */
+.code.rotating {
+  animation: codeRotate 0.4s ease;
+}
+
+@keyframes codeRotate {
+  0% {
+    opacity: 0.3;
+    transform: translateY(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Countdown ring */
+.countdown {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.countdownRing {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.countdownRingTrack {
+  fill: none;
+  stroke: var(--cpd-color-border-interactive-secondary);
+  stroke-width: 2;
+}
+
+.countdownRingProgress {
+  fill: none;
+  stroke: var(--cpd-color-icon-accent-primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+
+.countdownText {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--cpd-color-text-secondary);
+  line-height: 1;
+  z-index: 1;
+}
+
+/* Visibility toggle button */
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--cpd-space-1x);
+  background: transparent;
+  color: var(--cpd-color-icon-secondary);
+  cursor: pointer;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.actionButton:hover {
+  color: var(--cpd-color-icon-primary);
+}
+
+.actionButton svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Reveal hint */
+.revealHint {
+  font-size: var(--cpd-font-size-body-xs);
+  color: var(--cpd-color-text-secondary);
+  font-weight: 500;
+}

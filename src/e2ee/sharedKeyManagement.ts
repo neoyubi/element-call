@@ -5,7 +5,7 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE in the repository root for full details.
 */
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { logger } from "matrix-js-sdk/lib/logger";
 
 import {
@@ -15,6 +15,8 @@ import {
 import { getUrlParams } from "../UrlParams";
 import { E2eeType } from "./e2eeType";
 import { useClient } from "../ClientContext";
+import { Config } from "../config/Config";
+import { deriveSharedKey } from "./deriveKeyFromCode";
 
 /**
  * This setter will update the state for all `useRoomSharedKey` hooks
@@ -57,6 +59,27 @@ const useRoomSharedKey = (
   return [setInitialValue ?? roomSharedKey, setRoomSharedKey];
 };
 
+const getKeyMaterialLocalStorageKey = (alias: string): string =>
+  `room-key-material-${alias}`;
+
+/**
+ * Store key material indexed by room alias. Used when joining via extended code
+ * before the room ID is known.
+ */
+export function saveKeyMaterialForAlias(
+  alias: string,
+  keyMaterial: string,
+): void {
+  localStorage.setItem(getKeyMaterialLocalStorageKey(alias), keyMaterial);
+}
+
+/**
+ * Retrieve stored key material for a room alias.
+ */
+export function getKeyMaterialForAlias(alias: string): string | null {
+  return localStorage.getItem(getKeyMaterialLocalStorageKey(alias));
+}
+
 export function getKeyForRoom(roomId: string): string | null {
   const { roomId: urlRoomId, password } = getUrlParams();
   if (roomId !== urlRoomId)
@@ -78,12 +101,47 @@ export type EncryptionSystem = Unencrypted | SharedSecret | PerParticipantE2EE;
 export function useRoomEncryptionSystem(roomId: string): EncryptionSystem {
   const { client } = useClient();
 
-  const [storedPassword] = useRoomSharedKey(
+  const [storedPassword, setStoredPassword] = useRoomSharedKey(
     getRoomSharedKeyLocalStorageKey(roomId),
     getKeyForRoom(roomId) ?? undefined,
   );
 
   const room = client?.getRoom(roomId);
+
+  // Auto-derive key from the configured meeting state event if no password is stored
+  const [deriving, setDeriving] = useState(false);
+  useEffect(() => {
+    if (storedPassword || !room || deriving) return;
+
+    const meetingStateType =
+      Config.get().branding?.meeting_event_type ??
+      "io.element.call.scheduled_meeting";
+    const meetingEvent = room.currentState.getStateEvents(
+      meetingStateType,
+      "",
+    );
+    if (!meetingEvent || Array.isArray(meetingEvent)) return;
+
+    const content = meetingEvent.getContent();
+    const keyMaterial = content.key_material as string | undefined;
+    if (!keyMaterial) return;
+
+    const alias = room.getCanonicalAlias();
+    if (!alias) return;
+
+    setDeriving(true);
+    void deriveSharedKey(keyMaterial, alias)
+      .then((derived) => {
+        logger.info("Derived shared key from room state key_material");
+        saveKeyForRoom(roomId, derived);
+        setStoredPassword(derived);
+      })
+      .catch((e: unknown) => {
+        logger.error("Failed to derive shared key from room state", e);
+      })
+      .finally(() => setDeriving(false));
+  }, [storedPassword, room, roomId, deriving, setStoredPassword]);
+
   const e2eeSystem = <EncryptionSystem>useMemo(() => {
     if (!room) return { kind: E2eeType.NONE };
     if (storedPassword)

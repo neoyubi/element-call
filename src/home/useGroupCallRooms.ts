@@ -30,6 +30,8 @@ export interface GroupCallRoom {
   room: Room;
   session: MatrixRTCSession;
   participants: RoomMember[];
+  closed: boolean;
+  isAdmin: boolean;
 }
 const tsCache: { [index: string]: number } = {};
 
@@ -107,6 +109,10 @@ const roomIsJoinable = (room: Room): boolean => {
         default:
           return false;
       }
+    case JoinRule.Invite:
+      // Closed rooms only visible to joined users (admins);
+      // filtered further by isAdmin in updateRooms
+      return room.getMyMembership() === KnownMembership.Join;
     // TODO: check JoinRule.Restricted and return true if join condition is satisfied
     default:
       return room.getMyMembership() === KnownMembership.Join;
@@ -169,8 +175,40 @@ export function useGroupCallRooms(client: MatrixClient): GroupCallRoom[] {
         .filter(roomHasCallMembershipEvents)
         .filter(roomIsJoinable);
       const sortedRooms = sortRooms(client, rooms);
+      const myUserId = client.getUserId()!;
       const items = sortedRooms.map((room) => {
         const session = client.matrixRTC.getRoomSession(room);
+        const closed = room.getJoinRule() === JoinRule.Invite;
+
+        // Power level check: can this user change join rules (room owner)
+        // New rooms set events["m.room.join_rules"] = 100 explicitly.
+        // Legacy rooms have state_default: 0 with no join_rules override,
+        // so we check for an explicit user entry (creator gets 100 in users map).
+        const powerLevels = room.currentState.getStateEvents(
+          "m.room.power_levels",
+          "",
+        );
+        let isAdmin = false;
+        if (powerLevels) {
+          const content = powerLevels.getContent();
+          const userLevel =
+            content.users?.[myUserId] ?? content.users_default ?? 0;
+          const joinRulesLevel =
+            content.events?.["m.room.join_rules"];
+          if (joinRulesLevel !== undefined) {
+            // Explicit override exists: use it directly
+            isAdmin = userLevel >= joinRulesLevel;
+          } else {
+            // Legacy room: no explicit join_rules level.
+            // Only treat as admin if user has an elevated power level
+            // (creator is explicitly set to 100 in the users map)
+            const usersDefault = content.users_default ?? 0;
+            isAdmin =
+              content.users?.[myUserId] !== undefined &&
+              userLevel > usersDefault;
+          }
+        }
+
         return {
           roomAlias: room.getCanonicalAlias() ?? undefined,
           roomName: room.name,
@@ -181,10 +219,13 @@ export function useGroupCallRooms(client: MatrixClient): GroupCallRoom[] {
             .filter((m) => m.sender)
             .map((m) => room.getMember(m.sender!))
             .filter((m) => m) as RoomMember[],
+          closed,
+          isAdmin,
         };
       });
 
-      setRooms(items);
+      // Hide closed rooms from non-admins entirely
+      setRooms(items.filter((r) => !r.closed || r.isAdmin));
     }
 
     updateRooms();
@@ -194,12 +235,14 @@ export function useGroupCallRooms(client: MatrixClient): GroupCallRoom[] {
       updateRooms,
     );
     client.on(RoomEvent.MyMembership, updateRooms);
+    client.on(RoomEvent.CurrentStateUpdated, updateRooms);
     return (): void => {
       client.matrixRTC.off(
         MatrixRTCSessionManagerEvents.SessionStarted,
         updateRooms,
       );
       client.off(RoomEvent.MyMembership, updateRooms);
+      client.off(RoomEvent.CurrentStateUpdated, updateRooms);
     };
   }, [client]);
 

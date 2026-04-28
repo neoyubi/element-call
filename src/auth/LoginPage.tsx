@@ -7,7 +7,7 @@ Please see LICENSE in the repository root for full details.
 
 import { type FC, type FormEvent, useCallback, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { Button } from "@vector-im/compound-web";
 
 import Logo from "../icons/LogoLarge.svg?react";
@@ -129,13 +129,8 @@ export const LoginPage: FC = () => {
             </form>
           </div>
           <div className={styles.authLinks}>
-            <p>{t("login_auth_links_prompt")}</p>
             <p>
-              <Trans i18nKey="login_auth_links">
-                <Link to="/register">Create an account</Link>
-                {" Or "}
-                <Link to="/">Access as a guest</Link>
-              </Trans>
+              <Link to="/">{t("common.back")}</Link>
             </p>
           </div>
         </div>

@@ -16,11 +16,6 @@ Please see LICENSE in the repository root for full details.
   margin-bottom: 0;
 }
 
-.footer .mobileLoginLink {
-  display: flex;
-  margin-bottom: 24px;
-}
-
 .form {
   padding: 0 24px;
   justify-content: center;
@@ -31,10 +26,84 @@ Please see LICENSE in the repository root for full details.
   margin-bottom: 24px;
 }
 
-@media (min-width: 800px) {
-  .mobileLoginLink {
-    display: none;
-  }
+.tabs {
+  display: flex;
+  gap: 0;
+  margin-top: var(--cpd-space-6x);
+  margin-bottom: var(--cpd-space-4x);
+  border-bottom: 1px solid var(--cpd-color-border-interactive-secondary);
+}
+
+.tab {
+  padding: var(--cpd-space-2x) var(--cpd-space-5x);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: var(--cpd-font-size-body-md);
+  font-weight: 500;
+  color: var(--cpd-color-text-secondary);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab:hover {
+  color: var(--cpd-color-text-primary);
+}
+
+.activeTab {
+  color: var(--cpd-color-text-primary);
+  border-bottom-color: var(--cpd-color-text-action-accent);
+}
+
+.codeBoxes {
+  display: flex;
+  gap: 0;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  margin-bottom: 28px;
+}
+
+.codeGroup {
+  display: flex;
+  align-items: center;
+}
+
+.codeBox {
+  width: 72px;
+  height: 56px;
+  border: 2px solid var(--cpd-color-border-interactive-secondary);
+  border-radius: 10px;
+  background: var(--cpd-color-bg-canvas-default);
+  font-family: monospace;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--cpd-color-text-primary);
+  caret-color: var(--cpd-color-text-action-accent);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.codeBox:focus {
+  border-color: var(--cpd-color-text-action-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cpd-color-text-action-accent) 25%, transparent);
+}
+
+.codeBox::placeholder {
+  color: var(--cpd-color-text-placeholder);
+  opacity: 0.4;
+}
+
+.codeDash {
+  font-family: monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--cpd-color-text-secondary);
+  padding: 0 4px;
+  user-select: none;
 }
 
 .notice {

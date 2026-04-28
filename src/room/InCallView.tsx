@@ -5,7 +5,12 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE in the repository root for full details.
 */
 
-import { IconButton, Text, Tooltip } from "@vector-im/compound-web";
+import {
+  IconButton,
+  Text,
+  Tooltip,
+  Button as CpdButton,
+} from "@vector-im/compound-web";
 import { type MatrixClient, type Room as MatrixRoom } from "matrix-js-sdk";
 import {
   type FC,
@@ -26,11 +31,12 @@ import { BehaviorSubject, map } from "rxjs";
 import { useObservable } from "observable-hooks";
 import { logger as rootLogger } from "matrix-js-sdk/lib/logger";
 import {
+  CheckIcon,
+  RaisedHandSolidIcon,
   VoiceCallSolidIcon,
   VolumeOnSolidIcon,
 } from "@vector-im/compound-design-tokens/assets/web/icons";
 import { useTranslation } from "react-i18next";
-
 import LogoMark from "../icons/LogoMark.svg?react";
 import LogoType from "../icons/LogoType.svg?react";
 import {
@@ -39,7 +45,6 @@ import {
   VideoButton,
   ShareScreenButton,
   SettingsButton,
-  ReactionToggleButton,
 } from "../button";
 import { Header, LeftNav, RightNav, RoomHeaderInfo } from "../Header";
 import { type HeaderStyle, useUrlParams } from "../UrlParams";
@@ -64,7 +69,12 @@ import {
 import { Grid, type TileProps } from "../grid/Grid";
 import { useInitial } from "../useInitial";
 import { SpotlightTile } from "../tile/SpotlightTile";
-import { type EncryptionSystem } from "../e2ee/sharedKeyManagement";
+import {
+  type EncryptionSystem,
+  getKeyMaterialForAlias,
+  saveKeyMaterialForAlias,
+} from "../e2ee/sharedKeyManagement";
+import { generateKeyMaterial } from "../e2ee/deriveKeyFromCode";
 import { E2eeType } from "../e2ee/e2eeType";
 import { makeGridLayout } from "../grid/GridLayout";
 import {
@@ -92,6 +102,8 @@ import {
 import { ReactionsReader } from "../reactions/ReactionsReader";
 import { LivekitRoomAudioRenderer } from "../livekit/MatrixAudioRenderer.tsx";
 import { muteAllAudio$ } from "../state/MuteAllAudioModel.ts";
+import { useRotatingCode } from "../e2ee/useRotatingCode";
+import { RotatingCodeBadge } from "./RotatingCodeBadge";
 import { useMediaDevices } from "../MediaDevicesContext.ts";
 import { EarpieceOverlay } from "./EarpieceOverlay.tsx";
 import { useAppBarHidden, useAppBarSecondaryButton } from "../AppBar.tsx";
@@ -107,6 +119,10 @@ import ringtoneOgg from "../sound/ringtone.ogg?url";
 import { useTrackProcessorObservable$ } from "../livekit/TrackProcessorContext.tsx";
 import { type Layout } from "../state/layout-types.ts";
 import { ObservableScope } from "../state/ObservableScope.ts";
+import { useKnockMembers } from "./useKnockMembers.ts";
+import { KnockRequestsPanel } from "./KnockRequestsPanel.tsx";
+import { useRoomState } from "./useRoomState.ts";
+import { useClientState } from "../ClientContext";
 
 const logger = rootLogger.getChild("[InCallView]");
 
@@ -206,6 +222,88 @@ export const InCallView: FC<InCallViewProps> = ({
   const { supportsReactions, sendReaction, toggleRaisedHand } =
     useReactionsSender();
 
+  // Extract room code and key material for rotating display
+  const roomAlias = matrixRoom.getCanonicalAlias();
+  const roomCodeLocalpart = useMemo(() => {
+    if (!roomAlias) return null;
+    const localpart = roomAlias.split(":")[0]?.replace("#", "");
+    if (!localpart || !/^[A-Z]{4}$/.test(localpart)) return null;
+    return localpart;
+  }, [roomAlias]);
+
+  const [keyMaterial, setKeyMaterial] = useState(() =>
+    roomAlias ? getKeyMaterialForAlias(roomAlias) : null,
+  );
+
+  // Rotating code with countdown
+  const rotatingCodeState = useRotatingCode(roomCodeLocalpart, keyMaterial);
+
+  const onRegenerateCode = useCallback(() => {
+    if (!roomAlias) return;
+    const newMaterial = generateKeyMaterial();
+    saveKeyMaterialForAlias(roomAlias, newMaterial);
+    setKeyMaterial(newMaterial);
+  }, [roomAlias]);
+
+  // Guests cannot reveal the code
+  const clientState = useClientState();
+  const isGuest =
+    clientState?.state === "valid" &&
+    (clientState.authenticated?.isPasswordlessUser ?? false);
+
+  const [codeCopiedToast, setCodeCopiedToast] = useState(false);
+  const onCodeCopiedDismiss = useCallback(() => setCodeCopiedToast(false), []);
+  const onCodeCopied = useCallback(() => setCodeCopiedToast(true), []);
+
+  // Knock approval UI (only in standalone mode for room admins)
+  const knockMembers = useKnockMembers(matrixRoom);
+  const [knockPanelOpen, setKnockPanelOpen] = useState(false);
+  const [knockToastOpen, setKnockToastOpen] = useState(false);
+  const [knockToastName, setKnockToastName] = useState("");
+  const onDismissKnockPanel = useCallback(() => setKnockPanelOpen(false), []);
+  const onOpenKnockPanel = useCallback(() => setKnockPanelOpen(true), []);
+  const onDismissKnockToast = useCallback(() => setKnockToastOpen(false), []);
+
+  // Auto-close knock panel when no more pending requests
+  useEffect(() => {
+    if (knockMembers.length === 0 && knockPanelOpen) {
+      setKnockPanelOpen(false);
+    }
+  }, [knockMembers.length, knockPanelOpen]);
+
+  // Check if the current user has invite power (i.e., can approve knocks)
+  const canInvite = useRoomState(
+    matrixRoom,
+    useCallback(
+      (state) => {
+        const userId = client.getUserId();
+        if (!userId) return false;
+        const powerLevels = state.getStateEvents("m.room.power_levels", "");
+        if (!powerLevels) return false;
+        const content = powerLevels.getContent();
+        const userLevel = content.users?.[userId] ?? content.users_default ?? 0;
+        const inviteLevel = content.invite ?? 0;
+        return userLevel >= inviteLevel;
+      },
+      [client],
+    ),
+  );
+
+  // Play sound and show toast when new knock requests arrive
+  const prevKnockCount = useRef(knockMembers.length);
+  useEffect(() => {
+    if (knockMembers.length > prevKnockCount.current && canInvite && !widget) {
+      const newest = knockMembers[knockMembers.length - 1];
+      setKnockToastName(newest?.name ?? "");
+      setKnockToastOpen(true);
+      setKnockPanelOpen(true);
+      new Audio("/sounds/knock.wav").play().catch((e) => {
+        logger.warn("Failed to play knock sound", e);
+      });
+    }
+    prevKnockCount.current = knockMembers.length;
+  }, [knockMembers, canInvite]);
+
   useWakeLock();
   // TODO-MULTI-SFU This is unused now??
   // const connectionState = useObservableEagerState(vm.livekitConnectionState$);
@@ -272,6 +370,7 @@ export const InCallView: FC<InCallViewProps> = ({
   const earpieceMode = useBehavior(vm.earpieceMode$);
   const audioOutputSwitcher = useBehavior(vm.audioOutputSwitcher$);
   const sharingScreen = useBehavior(vm.sharingScreen$);
+  const handsRaised = useBehavior(vm.handsRaised$);
 
   const ringOverlay = useBehavior(vm.ringOverlay$);
   const fatalCallError = useBehavior(vm.fatalError$);
@@ -488,8 +587,26 @@ export const InCallView: FC<InCallViewProps> = ({
                 encrypted={matrixInfo.e2eeSystem.kind !== E2eeType.NONE}
                 participantCount={participantCount}
               />
+              {rotatingCodeState.code && !widget && (
+                <RotatingCodeBadge
+                  codeState={rotatingCodeState}
+                  onCopied={onCodeCopied}
+                  canReveal={!isGuest}
+                  onRegenerate={!isGuest ? onRegenerateCode : undefined}
+                />
+              )}
             </LeftNav>
             <RightNav>
+              {!widget && canInvite && knockMembers.length > 0 && (
+                <button
+                  className={styles.knockBadge}
+                  onClick={onOpenKnockPanel}
+                  type="button"
+                  title={t("knock_requests.title")}
+                >
+                  {t("knock_requests.count", { count: knockMembers.length })}
+                </button>
+              )}
               {showControls && onShareClick !== null && (
                 <InviteButton
                   className={styles.invite}
@@ -693,14 +810,22 @@ export const InCallView: FC<InCallViewProps> = ({
     );
   }
   if (supportsReactions) {
+    const handIdentifier = `${client.getUserId()}:${client.getDeviceId()}`;
+    const isHandRaised = !!handsRaised[handIdentifier];
+    const handLabel = isHandRaised ? t("action.lower_hand") : t("action.raise_hand");
     buttons.push(
-      <ReactionToggleButton
-        vm={vm}
-        key="raise_hand"
-        className={styles.raiseHand}
-        identifier={`${client.getUserId()}:${client.getDeviceId()}`}
-        onTouchEnd={onControlsTouchEnd}
-      />,
+      <Tooltip label={handLabel} key="raise_hand">
+        <CpdButton
+          className={styles.raiseHand}
+          kind={isHandRaised ? "primary" : "secondary"}
+          iconOnly
+          Icon={RaisedHandSolidIcon}
+          aria-label={handLabel}
+          aria-pressed={isHandRaised}
+          onClick={() => void toggleRaisedHand()}
+          onTouchEnd={onControlsTouchEnd}
+        />
+      </Tooltip>,
     );
   }
   if (layout.type !== "pip")
@@ -808,6 +933,33 @@ export const InCallView: FC<InCallViewProps> = ({
               }))}
           />
         </>
+      )}
+      <Toast
+        open={codeCopiedToast}
+        onDismiss={onCodeCopiedDismiss}
+        autoDismiss={2000}
+        Icon={CheckIcon}
+      >
+        {t("room_code.copied")}
+      </Toast>
+      <Toast
+        open={knockToastOpen}
+        onDismiss={onDismissKnockToast}
+        autoDismiss={4000}
+        Icon={VoiceCallSolidIcon}
+      >
+        {knockToastName
+          ? t("knock_requests.notify_named", { name: knockToastName })
+          : t("knock_requests.notify")}
+      </Toast>
+      {!widget && canInvite && (
+        <KnockRequestsPanel
+          client={client}
+          roomId={matrixRoom.roomId}
+          knockMembers={knockMembers}
+          open={knockPanelOpen}
+          onDismiss={onDismissKnockPanel}
+        />
       )}
     </div>
   );

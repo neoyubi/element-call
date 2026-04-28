@@ -16,7 +16,7 @@ import {
 } from "react";
 import { type MatrixError } from "matrix-js-sdk";
 import { logger } from "matrix-js-sdk/lib/logger";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import {
   CheckIcon,
   UnknownSolidIcon,
@@ -38,7 +38,6 @@ import { E2eeType } from "../e2ee/e2eeType";
 import { useProfile } from "../profile/useProfile";
 import { useOptInAnalytics } from "../settings/settings";
 import { Config } from "../config/Config";
-import { Link } from "../button/Link";
 import { ErrorView } from "../ErrorView";
 import { useMediaDevices } from "../MediaDevicesContext";
 import { MuteStates } from "../state/MuteStates";
@@ -205,13 +204,7 @@ export const RoomPage: FC = () => {
                 title={t("error.call_not_found")}
                 widget={widget}
               >
-                <Trans i18nKey="error.call_not_found_description">
-                  <p>
-                    That link doesn't appear to belong to any existing call.
-                    Check that you have the right link, or{" "}
-                    <Link to="/">create a new one</Link>.
-                  </p>
-                </Trans>
+                <p>{t("error.call_not_found_description")}</p>
               </ErrorView>
             </FullScreenView>
           );

@@ -32,6 +32,7 @@ import {
   AdminIcon,
   CloseIcon,
   EndCallIcon,
+  LockSolidIcon,
 } from "@vector-im/compound-design-tokens/assets/web/icons";
 
 import { widget } from "../widget";
@@ -163,6 +164,15 @@ export const useLoadGroupCall = (
       ),
     [t],
   );
+  const roomClosedError = useCallback(
+    (): CallTerminatedMessage =>
+      new CallTerminatedMessage(
+        LockSolidIcon,
+        t("group_call_loader.room_closed_heading"),
+        t("group_call_loader.room_closed_body"),
+      ),
+    [t],
+  );
 
   const leaveReason = (): string =>
     activeRoom.current?.currentState
@@ -173,26 +183,14 @@ export const useLoadGroupCall = (
     if (!client || !roomIdOrAlias) {
       return;
     }
-    const getRoomByAlias = async (alias: string): Promise<Room> => {
-      // We lowercase the localpart when we create the room, so we must lowercase
-      // it here too (we just do the whole alias). We can't do the same to room IDs
-      // though.
-      // Also, we explicitly look up the room alias here. We previously just tried to
-      // join anyway but the js-sdk recreates the room if you pass the alias for a
-      // room you're already joined to (which it probably ought not to).
-      let room: Room | null = null;
-      const lookupResult = await client.getRoomIdForAlias(alias.toLowerCase());
+    const getRoomByAlias = async (alias: string): Promise<string> => {
+      // Resolve alias to room ID. We explicitly look up the room alias here
+      // rather than passing the alias to joinRoom, because the js-sdk
+      // recreates the room if you pass the alias for a room you're already
+      // joined to (which it probably ought not to).
+      const lookupResult = await client.getRoomIdForAlias(alias);
       logger.info(`${alias} resolved to ${lookupResult.room_id}`);
-      room = client.getRoom(lookupResult.room_id);
-      if (!room) {
-        logger.info(`Room ${lookupResult.room_id} not found, joining.`);
-        room = await client.joinRoom(lookupResult.room_id, {
-          viaServers: lookupResult.servers,
-        });
-      } else {
-        logger.info(`Already in room ${lookupResult.room_id}, not rejoining.`);
-      }
-      return room;
+      return lookupResult.room_id;
     };
 
     const getRoomByKnocking = async (
@@ -230,91 +228,89 @@ export const useLoadGroupCall = (
 
     const fetchOrCreateRoom = async (): Promise<Room> => {
       let room: Room | null = null;
-      if (roomIdOrAlias[0] === "#") {
-        const alias = roomIdOrAlias;
-        // The call uses a room alias
-        room = await getRoomByAlias(alias);
-        activeRoom.current = room;
+      // Resolve alias to room ID if needed
+      const roomId =
+        roomIdOrAlias[0] === "#"
+          ? await getRoomByAlias(roomIdOrAlias)
+          : roomIdOrAlias;
+
+      // first try if the room already exists
+      //  - in widget mode
+      //  - in SPA mode if the user already joined the room
+      room = client.getRoom(roomId);
+      activeRoom.current = room ?? undefined;
+      const membership = room?.getMyMembership();
+      if (membership === KnownMembership.Join) {
+        // room already joined so we are done here already.
+        return room!;
+      }
+      if (widget)
+        // in widget mode we never should reach this point. (getRoom should return the room.)
+        throw new Error(
+          "Room not found. The widget-api did not pass over the relevant room events/information.",
+        );
+
+      if (membership === KnownMembership.Ban) {
+        throw bannedError();
+      } else if (membership === KnownMembership.Invite) {
+        room = await client.joinRoom(roomId, {
+          viaServers,
+        });
       } else {
-        // The call uses a room_id
-        const roomId = roomIdOrAlias;
-
-        // first try if the room already exists
-        //  - in widget mode
-        //  - in SPA mode if the user already joined the room
-        room = client.getRoom(roomId);
-        activeRoom.current = room ?? undefined;
-        const membership = room?.getMyMembership();
-        if (membership === KnownMembership.Join) {
-          // room already joined so we are done here already.
-          return room!;
-        }
-        if (widget)
-          // in widget mode we never should reach this point. (getRoom should return the room.)
-          throw new Error(
-            "Room not found. The widget-api did not pass over the relevant room events/information.",
+        // If the room does not exist we first search for it with viaServers
+        let roomSummary: RoomSummary | undefined = undefined;
+        try {
+          roomSummary = await client.getRoomSummary(roomId, viaServers);
+        } catch (error) {
+          // If the room summary endpoint is not supported we let it be undefined and treat this case like
+          // `JoinRule.Public`.
+          // This is how the logic was done before: "we expect any room id passed to EC
+          // to be for a public call" Which is definitely not ideal but worth a try if fetching
+          // the summary crashes.
+          logger.warn(
+            `Could not load room summary to decide whether we want to join or knock.
+            EC will fallback to join as if this would be a public room.
+            Reach out to your homeserver admin to ask them about supporting the \`/summary\` endpoint (im.nheko.summary):`,
+            error,
           );
-
-        if (membership === KnownMembership.Ban) {
-          throw bannedError();
-        } else if (membership === KnownMembership.Invite) {
+        }
+        if (
+          roomSummary === undefined ||
+          roomSummary.join_rule === JoinRule.Public
+        ) {
           room = await client.joinRoom(roomId, {
             viaServers,
           });
+        } else if (roomSummary.join_rule === JoinRule.Knock) {
+          // bind room summary in this scope so we have it stored in a binding of type `RoomSummary`
+          // instead of `RoomSummary | undefined`. Because we use it in a promise the linter does not accept
+          // the type check from the if condition above.
+          const _roomSummary = roomSummary;
+          let knock: () => void = () => {};
+          const userPressedAskToJoinPromise: Promise<void> = new Promise(
+            (resolve) => {
+              if (_roomSummary.membership !== KnownMembership.Knock) {
+                knock = resolve;
+              } else {
+                // resolve immediately if the user already knocked
+                resolve();
+              }
+            },
+          );
+          setState({ kind: "canKnock", roomSummary: _roomSummary, knock });
+          await userPressedAskToJoinPromise;
+          room = await getRoomByKnocking(
+            roomSummary.room_id,
+            viaServers,
+            () =>
+              setState({ kind: "waitForInvite", roomSummary: _roomSummary }),
+          );
+        } else if (roomSummary.join_rule === JoinRule.Invite) {
+          throw roomClosedError();
         } else {
-          // If the room does not exist we first search for it with viaServers
-          let roomSummary: RoomSummary | undefined = undefined;
-          try {
-            roomSummary = await client.getRoomSummary(roomId, viaServers);
-          } catch (error) {
-            // If the room summary endpoint is not supported we let it be undefined and treat this case like
-            // `JoinRule.Public`.
-            // This is how the logic was done before: "we expect any room id passed to EC
-            // to be for a public call" Which is definitely not ideal but worth a try if fetching
-            // the summary crashes.
-            logger.warn(
-              `Could not load room summary to decide whether we want to join or knock.
-              EC will fallback to join as if this would be a public room.
-              Reach out to your homeserver admin to ask them about supporting the \`/summary\` endpoint (im.nheko.summary):`,
-              error,
-            );
-          }
-          if (
-            roomSummary === undefined ||
-            roomSummary.join_rule === JoinRule.Public
-          ) {
-            room = await client.joinRoom(roomId, {
-              viaServers,
-            });
-          } else if (roomSummary.join_rule === JoinRule.Knock) {
-            // bind room summary in this scope so we have it stored in a binding of type `RoomSummary`
-            // instead of `RoomSummary | undefined`. Because we use it in a promise the linter does not accept
-            // the type check from the if condition above.
-            const _roomSummary = roomSummary;
-            let knock: () => void = () => {};
-            const userPressedAskToJoinPromise: Promise<void> = new Promise(
-              (resolve) => {
-                if (_roomSummary.membership !== KnownMembership.Knock) {
-                  knock = resolve;
-                } else {
-                  // resolve immediately if the user already knocked
-                  resolve();
-                }
-              },
-            );
-            setState({ kind: "canKnock", roomSummary: _roomSummary, knock });
-            await userPressedAskToJoinPromise;
-            room = await getRoomByKnocking(
-              roomSummary.room_id,
-              viaServers,
-              () =>
-                setState({ kind: "waitForInvite", roomSummary: _roomSummary }),
-            );
-          } else {
-            throw new Error(
-              `Room ${roomSummary.room_id} is not joinable. This likely means, that the conference owner has changed the room settings to private.`,
-            );
-          }
+          throw new Error(
+            `Room ${roomSummary.room_id} is not joinable. This likely means, that the conference owner has changed the room settings to private.`,
+          );
         }
       }
 
@@ -375,6 +371,7 @@ export const useLoadGroupCall = (
     client,
     knockRejectError,
     removeNoticeError,
+    roomClosedError,
     roomIdOrAlias,
     state,
     t,

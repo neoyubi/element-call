@@ -24,3 +24,88 @@ Please see LICENSE in the repository root for full details.
 .qrCode img {
   margin-block-end: var(--cpd-space-8x);
 }
+
+.divider {
+  width: 100%;
+  height: 1px;
+  background: var(--cpd-color-border-interactive-secondary);
+  margin-block: var(--cpd-space-6x);
+}
+
+.codeLabel {
+  text-align: center;
+  color: var(--cpd-color-text-secondary);
+  margin-block-end: var(--cpd-space-2x);
+}
+
+.codeRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cpd-space-3x);
+  margin-block-end: var(--cpd-space-4x);
+}
+
+.extendedCode {
+  text-align: center;
+  font-family: monospace;
+  letter-spacing: 0.15em;
+  color: var(--cpd-color-text-primary);
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.extendedCode.rotating {
+  animation: codeRotate 0.4s ease;
+}
+
+@keyframes codeRotate {
+  0% {
+    opacity: 0.3;
+    transform: translateY(3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Countdown ring (larger version for modal) */
+.countdown {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
+
+.countdownRing {
+  position: absolute;
+  inset: 0;
+  transform: rotate(-90deg);
+}
+
+.countdownRingTrack {
+  fill: none;
+  stroke: var(--cpd-color-border-interactive-secondary);
+  stroke-width: 2;
+}
+
+.countdownRingProgress {
+  fill: none;
+  stroke: var(--cpd-color-icon-accent-primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+
+.countdownText {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cpd-color-text-secondary);
+  line-height: 1;
+  z-index: 1;
+}

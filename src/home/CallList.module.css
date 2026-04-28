@@ -75,3 +75,9 @@ Please see LICENSE in the repository root for full details.
   cursor: not-allowed;
   opacity: 0.8;
 }
+
+.adminActions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}

@@ -14,7 +14,6 @@ import { LinkButton } from "./button";
 import { Avatar, Size } from "./Avatar";
 import UserIcon from "./icons/User.svg?react";
 import SettingsIcon from "./icons/Settings.svg?react";
-import LoginIcon from "./icons/Login.svg?react";
 import LogoutIcon from "./icons/Logout.svg?react";
 import styles from "./UserMenu.module.css";
 
@@ -56,16 +55,7 @@ export const UserMenu: FC<Props> = ({
         label: t("common.settings"),
       });
 
-      if (isPasswordlessUser && !preventNavigation) {
-        arr.push({
-          key: "login",
-          label: t("action.sign_in"),
-          icon: LoginIcon,
-          dataTestid: "usermenu_login",
-        });
-      }
-
-      if (!isPasswordlessUser && !preventNavigation) {
+      if (!preventNavigation) {
         arr.push({
           key: "logout",
           label: t("action.sign_out"),

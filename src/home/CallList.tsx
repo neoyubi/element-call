@@ -6,12 +6,29 @@ Please see LICENSE in the repository root for full details.
 */
 
 import { Link } from "react-router-dom";
-import { type RoomMember, type Room, type MatrixClient } from "matrix-js-sdk";
-import { type FC, useCallback, type MouseEvent, useState } from "react";
+import {
+  type RoomMember,
+  type Room,
+  type MatrixClient,
+  EventType,
+} from "matrix-js-sdk";
+import {
+  type FC,
+  useCallback,
+  useEffect,
+  type MouseEvent,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { IconButton, Text } from "@vector-im/compound-web";
-import { CloseIcon } from "@vector-im/compound-design-tokens/assets/web/icons";
+import {
+  CloseIcon,
+  DeleteIcon,
+  LockSolidIcon,
+  LockOffIcon,
+} from "@vector-im/compound-design-tokens/assets/web/icons";
 import classNames from "classnames";
+import { logger } from "matrix-js-sdk/lib/logger";
 
 import { Avatar, Size } from "../Avatar";
 import styles from "./CallList.module.css";
@@ -28,16 +45,20 @@ export const CallList: FC<CallListProps> = ({ rooms, client }) => {
   return (
     <>
       <div className={styles.callList}>
-        {rooms.map(({ room, roomName, avatarUrl, participants }) => (
-          <CallTile
-            key={room.roomId}
-            client={client}
-            name={roomName}
-            avatarUrl={avatarUrl}
-            room={room}
-            participants={participants}
-          />
-        ))}
+        {rooms.map(
+          ({ room, roomName, avatarUrl, participants, closed, isAdmin }) => (
+            <CallTile
+              key={room.roomId}
+              client={client}
+              name={roomName}
+              avatarUrl={avatarUrl}
+              room={room}
+              participants={participants}
+              closed={closed}
+              isAdmin={isAdmin}
+            />
+          ),
+        )}
         {rooms.length > 3 && (
           <>
             <div className={styles.callTileSpacer} />
@@ -54,12 +75,32 @@ interface CallTileProps {
   room: Room;
   participants: RoomMember[];
   client: MatrixClient;
+  closed: boolean;
+  isAdmin: boolean;
 }
 
-const CallTile: FC<CallTileProps> = ({ name, avatarUrl, room, client }) => {
+const CallTile: FC<CallTileProps> = ({
+  name,
+  avatarUrl,
+  room,
+  client,
+  closed,
+  isAdmin,
+}) => {
   const { t } = useTranslation();
   const roomEncryptionSystem = useRoomEncryptionSystem(room.roomId);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [isDeleted, setIsDeleted] = useState(false);
+  const isJoined = room.getMyMembership() === "join";
+
+  // Optimistic closed state: override until the real state catches up
+  const [closedOverride, setClosedOverride] = useState<boolean | null>(null);
+  const effectiveClosed = closedOverride ?? closed;
+
+  // Reset override when the real prop catches up
+  useEffect(() => {
+    setClosedOverride(null);
+  }, [closed]);
 
   const onRemove = useCallback(
     (e: MouseEvent) => {
@@ -71,6 +112,63 @@ const CallTile: FC<CallTileProps> = ({ name, avatarUrl, room, client }) => {
     [room, client],
   );
 
+  const onToggleClosed = useCallback(
+    (e: MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const newClosed = !effectiveClosed;
+      setClosedOverride(newClosed);
+      const newRule = newClosed ? "invite" : "knock";
+      void client
+        .sendStateEvent(
+          room.roomId,
+          EventType.RoomJoinRules,
+          { join_rule: newRule },
+          "",
+        )
+        .then(() => {
+          logger.info(`Room ${room.roomId} join rule changed to ${newRule}`);
+        })
+        .catch((err: unknown) => {
+          logger.error("Failed to toggle room closed state", err);
+          setClosedOverride(null);
+        });
+    },
+    [room, client, effectiveClosed],
+  );
+
+  const onDeleteRoom = useCallback(
+    (e: MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      setIsDeleted(true);
+      setIsLeaving(true);
+      // Kick all other members, then leave
+      const members = room.getJoinedMembers();
+      const myUserId = client.getUserId()!;
+      const kickAll = members
+        .filter((m) => m.userId !== myUserId)
+        .map((m) =>
+          client.kick(room.roomId, m.userId).catch((err: unknown) => {
+            logger.error(`Failed to kick ${m.userId}`, err);
+          }),
+        );
+      void Promise.all(kickAll)
+        .then(async () => {
+          await client.leave(room.roomId);
+          logger.info(`Room ${room.roomId} deleted`);
+        })
+        .catch((err: unknown) => {
+          logger.error("Failed to delete room", err);
+          setIsDeleted(false);
+          setIsLeaving(false);
+        });
+    },
+    [room, client],
+  );
+
+  if (isDeleted) return null;
+
   const body = (
     <>
       <Avatar id={room.roomId} name={name} size={Size.LG} src={avatarUrl} />
@@ -79,13 +177,36 @@ const CallTile: FC<CallTileProps> = ({ name, avatarUrl, room, client }) => {
           {name}
         </Text>
       </div>
-      <IconButton
-        onClick={onRemove}
-        disabled={isLeaving}
-        aria-label={t("action.remove")}
-      >
-        <CloseIcon />
-      </IconButton>
+      {isAdmin ? (
+        <div className={styles.adminActions}>
+          <IconButton
+            onClick={onToggleClosed}
+            disabled={isLeaving || !isJoined}
+            aria-label={
+              effectiveClosed
+                ? t("room_status.reopen")
+                : t("room_status.close")
+            }
+          >
+            {effectiveClosed ? <LockSolidIcon /> : <LockOffIcon />}
+          </IconButton>
+          <IconButton
+            onClick={onDeleteRoom}
+            disabled={isLeaving}
+            aria-label={t("room_status.delete")}
+          >
+            <DeleteIcon />
+          </IconButton>
+        </div>
+      ) : (
+        <IconButton
+          onClick={onRemove}
+          disabled={isLeaving}
+          aria-label={t("action.remove")}
+        >
+          <CloseIcon />
+        </IconButton>
+      )}
     </>
   );
 
