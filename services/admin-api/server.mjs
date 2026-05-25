@@ -2,6 +2,8 @@ import { createServer } from "node:http";
 import { createHmac, randomBytes, pbkdf2 } from "node:crypto";
 
 import { authorizeRequest } from "./auth.mjs";
+import { buildVEvent } from "./ics.mjs";
+import { putEvent, deleteEvent, isConfigured as caldavConfigured } from "./caldav.mjs";
 
 // --- Configuration ---
 const SYNAPSE_URL = process.env.SYNAPSE_URL || "http://localhost:8008";
@@ -26,6 +28,35 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
 const MEETING_STATE_TYPE =
   process.env.MEETING_STATE_TYPE || "io.element.call.scheduled_meeting";
 const BOT_USER_PREFIX = process.env.BOT_USER_PREFIX || "call-bot";
+
+// Shared scheduling mailbox; also the ICS ORGANIZER address.
+const CALDAV_USER = process.env.CALDAV_USER;
+
+// Default reminder lead time (minutes) when a request omits reminder_minutes.
+// 0 disables the reminder email.
+const REMINDER_DEFAULT_MINUTES = parseInt(
+  process.env.REMINDER_DEFAULT_MINUTES || "30",
+  10,
+);
+
+// Stable iCalendar UID for a booking. Domain comes from SERVER_NAME so no
+// tenant hostname is baked into the source.
+function bookingUid(bookingId) {
+  return `booking-${bookingId}@${SERVER_NAME}`;
+}
+
+// Normalize reminder_minutes from a request body: integer >= 0, defaulting to
+// REMINDER_DEFAULT_MINUTES when absent. 0 means no reminder.
+function normalizeReminderMinutes(value) {
+  if (value === undefined || value === null) {
+    return REMINDER_DEFAULT_MINUTES;
+  }
+  const n = parseInt(value, 10);
+  if (Number.isNaN(n) || n < 0) {
+    return REMINDER_DEFAULT_MINUTES;
+  }
+  return n;
+}
 
 // Environment slice handed to the authorization engine.
 const AUTH_ENV = {
@@ -174,6 +205,102 @@ async function synapseRequest(path, options = {}) {
   return { status: resp.status, data };
 }
 
+// --- Calendar (best-effort) ---
+//
+// Write or cancel the SOGo calendar event for a meeting. Failures are logged
+// (booking_id only) and swallowed: the calendar is best-effort and never fails
+// the room operation. No-ops when CalDAV is not configured.
+async function writeCalendarEvent({
+  method,
+  bookingId,
+  sequence,
+  startMs,
+  endMs,
+  roomName,
+  meetLink,
+  timezone,
+  organizerEmail,
+  prospectEmail,
+}) {
+  if (!caldavConfigured()) {
+    return;
+  }
+  const attendeeEmails = [organizerEmail, prospectEmail].filter(Boolean);
+  const uid = bookingUid(bookingId);
+  try {
+    const ics = buildVEvent({
+      uid,
+      sequence,
+      method,
+      startMs,
+      endMs,
+      summary: roomName,
+      description: roomName,
+      location: meetLink,
+      organizerEmail: CALDAV_USER,
+      attendeeEmails,
+      tzid: timezone,
+    });
+    await putEvent({ uid, ics });
+  } catch (err) {
+    console.warn(
+      `Calendar ${method} failed for booking ${bookingId}: ${err.message}`,
+    );
+  }
+}
+
+async function cancelCalendarEvent({
+  bookingId,
+  sequence,
+  startMs,
+  endMs,
+  roomName,
+  meetLink,
+  timezone,
+  organizerEmail,
+  prospectEmail,
+}) {
+  if (!caldavConfigured()) {
+    return;
+  }
+  const uid = bookingUid(bookingId);
+  const attendeeEmails = [organizerEmail, prospectEmail].filter(Boolean);
+  try {
+    // Push a CANCEL revision so SOGo emails the attendees, then remove the
+    // resource. A 404 on delete is treated as already-gone.
+    const ics = buildVEvent({
+      uid,
+      sequence,
+      method: "CANCEL",
+      startMs,
+      endMs,
+      summary: roomName,
+      description: roomName,
+      location: meetLink,
+      organizerEmail: CALDAV_USER,
+      attendeeEmails,
+      tzid: timezone,
+    });
+    await putEvent({ uid, ics });
+    await deleteEvent({ uid });
+  } catch (err) {
+    console.warn(
+      `Calendar cancel failed for booking ${bookingId}: ${err.message}`,
+    );
+  }
+}
+
+// Read the current meeting state event content for a room, or null if absent.
+async function readMeetingState(roomId) {
+  const result = await synapseRequest(
+    `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/state/${MEETING_STATE_TYPE}/`,
+  );
+  if (result.status !== 200) {
+    return null;
+  }
+  return result.data;
+}
+
 // --- Room Management ---
 
 async function createMeetingRoom(body) {
@@ -187,6 +314,9 @@ async function createMeetingRoom(body) {
     practice_type,
     timezone,
     organizer_user_id,
+    organizer_email,
+    prospect_email,
+    reminder_minutes,
   } = body;
 
   if (!booking_id || !room_name || !scheduled_start || !scheduled_end) {
@@ -198,11 +328,18 @@ async function createMeetingRoom(body) {
     };
   }
 
+  const tz = timezone || "Europe/Amsterdam";
+  const reminderMinutes = normalizeReminderMinutes(reminder_minutes);
+
   const aliasLocalpart = `demo-${booking_id}`;
   const roomAlias = `#${aliasLocalpart}:${SERVER_NAME}`;
 
   // Generate E2EE key material before room creation so it's in the initial state
   const keyMaterial = generateKeyMaterial();
+
+  // Compute the join link up front so it can be persisted in room state (the
+  // reminder worker reads meet_link rather than re-deriving it).
+  const password = await deriveSharedKey(keyMaterial, roomAlias);
 
   const result = await synapseRequest("/_matrix/client/v3/createRoom", {
     method: "POST",
@@ -226,8 +363,12 @@ async function createMeetingRoom(body) {
             scheduled_end,
             organizer_name: organizer_name || "",
             prospect_name: prospect_name || "",
+            organizer_email: organizer_email || "",
+            prospect_email: prospect_email || "",
             practice_type: practice_type || "solo",
-            timezone: timezone || "Europe/Amsterdam",
+            timezone: tz,
+            sequence: 0,
+            reminder_minutes: reminderMinutes,
             key_material: keyMaterial,
           },
         },
@@ -272,10 +413,37 @@ async function createMeetingRoom(body) {
   }
 
   const roomId = result.data.room_id;
-  const password = await deriveSharedKey(keyMaterial, roomAlias);
 
   const meetLink = `${ELEMENT_CALL_BASE_URL}/${aliasLocalpart}?meetingStart=${scheduled_start}&roomId=${encodeURIComponent(roomId)}&password=${password}`;
   const organizerLink = `${meetLink}&organizer=1`;
+
+  // Persist meet_link in the meeting state event. It depends on the room id,
+  // which is only known after creation, so it is added with a follow-up PUT
+  // (the reminder worker reads it instead of re-deriving the join link).
+  const persistResult = await synapseRequest(
+    `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/state/${MEETING_STATE_TYPE}/`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        booking_id,
+        scheduled_start,
+        scheduled_end,
+        organizer_name: organizer_name || "",
+        prospect_name: prospect_name || "",
+        organizer_email: organizer_email || "",
+        prospect_email: prospect_email || "",
+        practice_type: practice_type || "solo",
+        timezone: tz,
+        sequence: 0,
+        reminder_minutes: reminderMinutes,
+        meet_link: meetLink,
+        key_material: keyMaterial,
+      }),
+    },
+  );
+  if (persistResult.status !== 200) {
+    console.warn(`Failed to persist meet_link for booking ${booking_id}`);
+  }
 
   // Force-join the organizer via Synapse admin API so the room appears
   // in their sync immediately (invite alone won't populate state events)
@@ -288,11 +456,25 @@ async function createMeetingRoom(body) {
       },
     );
     if (joinResult.status === 200) {
-      console.log(`Joined ${organizer_user_id} to room ${roomId}`);
+      console.log(`Joined organizer to room ${roomId}`);
     } else {
-      console.warn(`Failed to join ${organizer_user_id}:`, joinResult.data);
+      console.warn(`Failed to join organizer to room ${roomId}`);
     }
   }
+
+  // Write the calendar invite (best-effort; never fails room creation).
+  await writeCalendarEvent({
+    method: "REQUEST",
+    bookingId: booking_id,
+    sequence: 0,
+    startMs: scheduled_start,
+    endMs: scheduled_end,
+    roomName: room_name,
+    meetLink,
+    timezone: tz,
+    organizerEmail: organizer_email,
+    prospectEmail: prospect_email,
+  });
 
   console.log(`Created room ${roomId} (${roomAlias}) for booking ${booking_id}`);
 
@@ -365,6 +547,23 @@ async function updateMeetingRoom(roomId, body) {
 }
 
 async function deleteMeetingRoom(roomId) {
+  // Read the meeting state first so a CANCEL invite can be emitted before the
+  // room (and its state) are purged.
+  const current = await readMeetingState(roomId);
+  if (current?.booking_id) {
+    await cancelCalendarEvent({
+      bookingId: current.booking_id,
+      sequence: (Number.isInteger(current.sequence) ? current.sequence : 0) + 1,
+      startMs: current.scheduled_start,
+      endMs: current.scheduled_end,
+      roomName: current.booking_id,
+      meetLink: current.meet_link || "",
+      timezone: current.timezone || "Europe/Amsterdam",
+      organizerEmail: current.organizer_email,
+      prospectEmail: current.prospect_email,
+    });
+  }
+
   // Use Synapse admin API to purge the room entirely
   // This requires the bot token to have admin privileges,
   // OR we use the registration shared secret for admin auth
