@@ -501,22 +501,69 @@ async function updateMeetingRoom(roomId, body) {
     practice_type,
     timezone,
     room_name,
+    organizer_email,
+    prospect_email,
+    reminder_minutes,
   } = body;
+
+  // Read the current meeting state so fields not in the request (notably
+  // key_material, which must survive a reschedule) are preserved.
+  const current = (await readMeetingState(roomId)) || {};
+
+  // Merge: request value wins when present, otherwise keep the stored value.
+  const merge = (incoming, key, fallback = "") =>
+    incoming !== undefined ? incoming : current[key] ?? fallback;
+
+  const newStart = scheduled_start !== undefined ? scheduled_start : current.scheduled_start;
+  const newEnd = scheduled_end !== undefined ? scheduled_end : current.scheduled_end;
+  const startChanged =
+    scheduled_start !== undefined && scheduled_start !== current.scheduled_start;
+
+  // SEQUENCE bumps on every revision; a missing prior value is treated as 0.
+  const sequence = (Number.isInteger(current.sequence) ? current.sequence : 0) + 1;
+
+  const reminderMinutes =
+    reminder_minutes !== undefined
+      ? normalizeReminderMinutes(reminder_minutes)
+      : Number.isInteger(current.reminder_minutes)
+        ? current.reminder_minutes
+        : REMINDER_DEFAULT_MINUTES;
+
+  const tz = merge(timezone, "timezone", "Europe/Amsterdam");
+  const organizerEmail = merge(organizer_email, "organizer_email");
+  const prospectEmail = merge(prospect_email, "prospect_email");
+  const meetLink = current.meet_link || "";
+
+  const newState = {
+    booking_id: merge(booking_id, "booking_id"),
+    scheduled_start: newStart,
+    scheduled_end: newEnd,
+    organizer_name: merge(organizer_name, "organizer_name"),
+    prospect_name: merge(prospect_name, "prospect_name"),
+    organizer_email: organizerEmail,
+    prospect_email: prospectEmail,
+    practice_type: merge(practice_type, "practice_type", "solo"),
+    timezone: tz,
+    sequence,
+    reminder_minutes: reminderMinutes,
+    // Preserve the E2EE key; dropping it would break existing join links.
+    key_material: current.key_material,
+  };
+  if (meetLink) {
+    newState.meet_link = meetLink;
+  }
+  // Carry reminder_sent forward, but clear it when the start time moved so the
+  // worker re-arms and re-sends the reminder for the new time.
+  if (current.reminder_sent !== undefined && !startChanged) {
+    newState.reminder_sent = current.reminder_sent;
+  }
 
   // Update the meeting state event
   const stateResult = await synapseRequest(
     `/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/state/${MEETING_STATE_TYPE}/`,
     {
       method: "PUT",
-      body: JSON.stringify({
-        booking_id: booking_id || "",
-        scheduled_start,
-        scheduled_end,
-        organizer_name: organizer_name || "",
-        prospect_name: prospect_name || "",
-        practice_type: practice_type || "solo",
-        timezone: timezone || "Europe/Amsterdam",
-      }),
+      body: JSON.stringify(newState),
     },
   );
 
@@ -541,6 +588,20 @@ async function updateMeetingRoom(roomId, body) {
       },
     );
   }
+
+  // Push an updated calendar invite with the bumped SEQUENCE (best-effort).
+  await writeCalendarEvent({
+    method: "REQUEST",
+    bookingId: newState.booking_id,
+    sequence,
+    startMs: newStart,
+    endMs: newEnd,
+    roomName: room_name || newState.booking_id,
+    meetLink,
+    timezone: tz,
+    organizerEmail,
+    prospectEmail,
+  });
 
   console.log(`Updated room ${roomId} meeting metadata`);
   return { status: 200, body: { success: true, room_id: roomId } };
