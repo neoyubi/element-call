@@ -1,0 +1,14 @@
+{
+  "name": "meeting-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sends meeting reminder emails and enforces meeting data retention.",
+  "main": "worker.mjs",
+  "scripts": {
+    "start": "node worker.mjs"
+  },
+  "dependencies": {
+    "nodemailer": "8.0.8"
+  }
+}
