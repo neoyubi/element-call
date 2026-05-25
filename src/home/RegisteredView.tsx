@@ -33,6 +33,8 @@ import guestStyles from "./UnauthenticatedView.module.css";
 import { FieldRow, InputField, ErrorMessage } from "../input/Input";
 import { CallList } from "./CallList";
 import { UpcomingMeetings } from "./UpcomingMeetings";
+import { ScheduleMeetingForm } from "./ScheduleMeetingForm";
+import { useCanSchedule } from "./useCanSchedule";
 import { UserMenuContainer } from "../UserMenuContainer";
 import { JoinExistingCallModal } from "./JoinExistingCallModal";
 import { Form } from "../form/Form";
@@ -178,6 +180,7 @@ export const RegisteredView: FC<Props> = ({ client, isPasswordlessUser }) => {
   const joinCodeValid = codeValue.length === 4 || codeValue.length === 8;
 
   const recentRooms = useGroupCallRooms(client);
+  const canSchedule = useCanSchedule(client);
 
   const [existingAlias, setExistingAlias] = useState<string>();
   const onJoinExistingRoom = useCallback(() => {
@@ -304,6 +307,7 @@ export const RegisteredView: FC<Props> = ({ client, isPasswordlessUser }) => {
                   </FieldRow>
                 )}
               </Form>
+              {canSchedule && <ScheduleMeetingForm client={client} />}
             </>
           )}
           <UpcomingMeetings client={client} />

@@ -114,6 +114,20 @@ export interface ConfigOptions {
   guest_registration_url?: string;
 
   /**
+   * Base URL of the scheduling admin API. When set together with
+   * schedulers_room_id, authorized users can schedule meetings from the
+   * home page. The browser authorizes with the user's own access token;
+   * no service credential is ever shipped to the client.
+   */
+  admin_api_url?: string;
+
+  /**
+   * Matrix room id whose joined members are allowed to schedule meetings.
+   * The scheduling form is only shown to users who are joined to this room.
+   */
+  schedulers_room_id?: string;
+
+  /**
    * Branding and identity configuration. All fields are optional so the
    * source ships with neutral defaults that fall back to upstream Element
    * Call's branding. Deployments override these values at runtime via
