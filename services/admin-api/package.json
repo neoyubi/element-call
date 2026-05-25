@@ -1,0 +1,10 @@
+{
+  "name": "element-call-admin-api",
+  "version": "1.2.0",
+  "private": true,
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

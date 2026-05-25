@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
-import { createHmac, timingSafeEqual, randomBytes, pbkdf2 } from "node:crypto";
+import { createHmac, randomBytes, pbkdf2 } from "node:crypto";
+
+import { authorizeRequest } from "./auth.mjs";
 
 // --- Configuration ---
 const SYNAPSE_URL = process.env.SYNAPSE_URL || "http://localhost:8008";
@@ -10,6 +12,11 @@ const API_KEY = process.env.ADMIN_API_KEY;
 const PORT = parseInt(process.env.PORT || "6091", 10);
 const REGISTRATION_SHARED_SECRET = process.env.REGISTRATION_SHARED_SECRET;
 
+// Room whose joined members are allowed to schedule meetings with their own
+// Matrix access token (the browser auth path). When unset, only the static
+// service key is accepted.
+const SCHEDULERS_ROOM_ID = process.env.SCHEDULERS_ROOM_ID;
+
 // Comma-separated list of allowed origins (for CORS and request validation)
 // e.g. "https://example.com,https://staging.example.com"
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
@@ -19,6 +26,14 @@ const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
 const MEETING_STATE_TYPE =
   process.env.MEETING_STATE_TYPE || "io.element.call.scheduled_meeting";
 const BOT_USER_PREFIX = process.env.BOT_USER_PREFIX || "call-bot";
+
+// Environment slice handed to the authorization engine.
+const AUTH_ENV = {
+  apiKey: API_KEY,
+  synapseUrl: SYNAPSE_URL,
+  botAccessToken: BOT_ACCESS_TOKEN,
+  schedulersRoomId: SCHEDULERS_ROOM_ID,
+};
 
 // Rate limiting
 const RATE_LIMIT_WINDOW_MS = parseInt(
@@ -157,20 +172,6 @@ async function synapseRequest(path, options = {}) {
   });
   const data = await resp.json();
   return { status: resp.status, data };
-}
-
-// --- Auth Middleware ---
-// Validates API key using timing-safe comparison
-function verifyApiKey(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return false;
-  }
-  const provided = authHeader.slice(7);
-  if (provided.length !== API_KEY.length) {
-    return false;
-  }
-  return timingSafeEqual(Buffer.from(provided), Buffer.from(API_KEY));
 }
 
 // --- Room Management ---
@@ -513,21 +514,27 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // 1. Verify API key
-  if (!verifyApiKey(req)) {
-    console.warn(`Unauthorized request from ${clientIp} to ${req.method} ${url.pathname}`);
-    json(res, 401, { error: "Unauthorized: invalid or missing API key" }, origin);
-    return;
-  }
-
-  // 2. Rate limit
+  // 1. Rate limit (before auth so a flood can't drive Synapse lookups)
   if (isRateLimited(clientIp)) {
     json(res, 429, { error: "Too many requests" }, origin);
     return;
   }
 
+  // 2. Authorize: static service key, or a scheduler's Matrix access token
+  // verified against #schedulers membership.
+  const auth = await authorizeRequest(req, AUTH_ENV);
+  if (!auth.ok) {
+    console.warn(
+      `Authorization failed (${auth.status}) from ${clientIp} to ${req.method} ${url.pathname}`,
+    );
+    json(res, auth.status, { error: auth.error }, origin);
+    return;
+  }
+
   // 3. Log the request
-  console.log(`[${new Date().toISOString()}] ${req.method} ${url.pathname} from ${clientIp}`);
+  console.log(
+    `[${new Date().toISOString()}] ${req.method} ${url.pathname} from ${clientIp} (${auth.scope})`,
+  );
 
   try {
     let result;
@@ -574,5 +581,8 @@ server.listen(PORT, () => {
   console.log(`Element Call base URL: ${ELEMENT_CALL_BASE_URL}`);
   console.log(
     `Allowed origins: ${ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS.join(", ") : "none (CORS disabled)"}`,
+  );
+  console.log(
+    `Scheduler auth: ${SCHEDULERS_ROOM_ID ? "enabled" : "disabled (service key only)"}`,
   );
 });
