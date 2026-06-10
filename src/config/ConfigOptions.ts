@@ -138,6 +138,10 @@ export interface ConfigOptions {
     product_name?: string;
     /** URL of a logo asset to render on branded screens. */
     logo_url?: string;
+    /** URL of the square logo mark shown in the in-call footer. */
+    logo_mark_url?: string;
+    /** URL of the wordmark shown next to the mark in the in-call footer. */
+    logo_type_url?: string;
     /** Link target for the home-page CTA. */
     website_url?: string;
     /** URL to a privacy policy. The consent line is hidden when unset. */

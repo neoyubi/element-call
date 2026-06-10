@@ -26,6 +26,7 @@ import { useClientLegacy } from "../ClientContext";
 import { useInteractiveRegistration } from "./useInteractiveRegistration";
 import styles from "./LoginPage.module.css";
 import Logo from "../icons/LogoLarge.svg?react";
+import { brandingLogoUrl } from "../branding";
 import { LoadingPage } from "../FullScreenView";
 import { useRecaptcha } from "./useRecaptcha";
 import { usePageTitle } from "../usePageTitle";
@@ -158,7 +159,11 @@ export const RegisterPage: FC = () => {
       <div className={styles.container}>
         <div className={styles.content}>
           <div className={styles.formContainer}>
-            <Logo width="auto" height="auto" className={styles.logo} />
+            {brandingLogoUrl() ? (
+              <img src={brandingLogoUrl()} alt="" className={styles.logo} />
+            ) : (
+              <Logo width="auto" height="auto" className={styles.logo} />
+            )}
             <h2>{t("register_heading")}</h2>
             <form onSubmit={onSubmitRegisterForm}>
               <FieldRow>

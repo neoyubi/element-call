@@ -28,6 +28,7 @@ import { CodeInput } from "./CodeInput";
 import { parseRotatingCode, deriveSharedKey } from "../e2ee/deriveKeyFromCode";
 import { saveKeyMaterialForAlias } from "../e2ee/sharedKeyManagement";
 import { Config } from "../config/Config";
+import { productName } from "../branding";
 
 export const UnauthenticatedView: FC = () => {
   const { header } = useUrlParams();
@@ -115,7 +116,7 @@ export const UnauthenticatedView: FC = () => {
         <HeaderLogo className={commonStyles.logo} />
         <Heading size="lg" weight="semibold">
           {t("landing.heading", {
-            brand: import.meta.env.VITE_PRODUCT_NAME || "Element Call",
+            brand: productName(),
           })}
         </Heading>
         <div className={styles.tabs}>

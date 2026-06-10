@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@vector-im/compound-web";
 
 import Logo from "../icons/LogoLarge.svg?react";
+import { brandingLogoUrl } from "../branding";
 import { useClient } from "../ClientContext";
 import { FieldRow, InputField, ErrorMessage } from "../input/Input";
 import styles from "./LoginPage.module.css";
@@ -85,7 +86,11 @@ export const LoginPage: FC = () => {
       <div className={styles.container}>
         <div className={styles.content}>
           <div className={styles.formContainer}>
-            <Logo width="auto" height="auto" className={styles.logo} />
+            {brandingLogoUrl() ? (
+              <img src={brandingLogoUrl()} alt="" className={styles.logo} />
+            ) : (
+              <Logo width="auto" height="auto" className={styles.logo} />
+            )}
 
             <h2>{t("log_in")}</h2>
             <h4>{t("login_subheading")}</h4>

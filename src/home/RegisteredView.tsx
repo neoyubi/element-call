@@ -46,6 +46,7 @@ import { CodeInput } from "./CodeInput";
 import { parseRotatingCode, deriveSharedKey } from "../e2ee/deriveKeyFromCode";
 import { saveKeyMaterialForAlias } from "../e2ee/sharedKeyManagement";
 import { Config } from "../config/Config";
+import { productName } from "../branding";
 
 interface Props {
   client: MatrixClient;
@@ -208,7 +209,7 @@ export const RegisteredView: FC<Props> = ({ client, isPasswordlessUser }) => {
             <>
               <Heading size="lg" weight="semibold">
                 {t("landing.heading", {
-                  brand: import.meta.env.VITE_PRODUCT_NAME || "Element Call",
+                  brand: productName(),
                 })}
               </Heading>
               <div className={guestStyles.tabs}>
@@ -259,13 +260,13 @@ export const RegisteredView: FC<Props> = ({ client, isPasswordlessUser }) => {
                   size="lg"
                   disabled={
                     joinDeriving ||
-                    (activeTab === "code"
-                      ? !joinCodeValid
-                      : !linkValue.trim())
+                    (activeTab === "code" ? !joinCodeValid : !linkValue.trim())
                   }
                   data-testid="home_join"
                 >
-                  {joinDeriving ? t("common.loading") : t("landing.join_button")}
+                  {joinDeriving
+                    ? t("common.loading")
+                    : t("landing.join_button")}
                 </Button>
               </Form>
             </>

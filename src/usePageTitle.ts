@@ -7,9 +7,11 @@ Please see LICENSE in the repository root for full details.
 
 import { useEffect } from "react";
 
+import { productName } from "./branding";
+
 export function usePageTitle(title?: string): void {
   useEffect(() => {
-    const productName = import.meta.env.VITE_PRODUCT_NAME || "Element Call";
-    document.title = title ? `${productName} | ${title}` : productName;
+    const name = productName();
+    document.title = title ? `${name} | ${title}` : name;
   }, [title]);
 }

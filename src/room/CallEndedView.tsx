@@ -21,6 +21,7 @@ import { FieldRow, InputField } from "../input/Input";
 import { StarRatingInput } from "../input/StarRatingInput";
 import { Link } from "../button/Link";
 import { LinkButton } from "../button";
+import { productName } from "../branding";
 
 interface Props {
   client: MatrixClient;
@@ -82,7 +83,7 @@ export const CallEndedView: FC<Props> = ({
     <div className={styles.callEndedContent}>
       <Text size="md" className={styles.farewell}>
         {t("call_ended_view.guest_farewell", {
-          brand: import.meta.env.VITE_PRODUCT_NAME || "Element Call",
+          brand: productName(),
         })}
       </Text>
       {!confineToRoom && (

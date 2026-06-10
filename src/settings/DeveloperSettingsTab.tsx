@@ -45,6 +45,7 @@ import {
 } from "./settings";
 import styles from "./DeveloperSettingsTab.module.css";
 import { useUrlParams } from "../UrlParams";
+import { productName } from "../branding";
 
 interface Props {
   client: MatrixClient;
@@ -130,7 +131,7 @@ export const DeveloperSettingsTab: FC<Props> = ({
       </p>
       <p>
         {t("version", {
-          productName: import.meta.env.VITE_PRODUCT_NAME || "Element Call",
+          productName: productName(),
           version: import.meta.env.VITE_APP_VERSION || "dev",
         })}
       </p>

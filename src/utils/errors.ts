@@ -7,6 +7,8 @@ Please see LICENSE in the repository root for full details.
 
 import { t } from "i18next";
 
+import { productName } from "../branding";
+
 export enum ErrorCode {
   /**
    * Configuration problem due to no MatrixRTC backend/SFU is exposed via .well-known and no fallback configured.
@@ -75,7 +77,7 @@ export class MatrixRTCTransportMissingError extends ElementCallError {
       ErrorCategory.CONFIGURATION_ISSUE,
       t("error.matrix_rtc_transport_missing", {
         domain,
-        brand: import.meta.env.VITE_PRODUCT_NAME || "Element Call",
+        brand: productName(),
         errorCode: ErrorCode.MISSING_MATRIX_RTC_TRANSPORT,
       }),
     );

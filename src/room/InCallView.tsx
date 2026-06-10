@@ -37,8 +37,14 @@ import {
   VolumeOnSolidIcon,
 } from "@vector-im/compound-design-tokens/assets/web/icons";
 import { useTranslation } from "react-i18next";
+
 import LogoMark from "../icons/LogoMark.svg?react";
 import LogoType from "../icons/LogoType.svg?react";
+import {
+  brandingLogoMarkUrl,
+  brandingLogoTypeUrl,
+  productName,
+} from "../branding";
 import {
   EndCallButton,
   MicButton,
@@ -812,7 +818,9 @@ export const InCallView: FC<InCallViewProps> = ({
   if (supportsReactions) {
     const handIdentifier = `${client.getUserId()}:${client.getDeviceId()}`;
     const isHandRaised = !!handsRaised[handIdentifier];
-    const handLabel = isHandRaised ? t("action.lower_hand") : t("action.raise_hand");
+    const handLabel = isHandRaised
+      ? t("action.lower_hand")
+      : t("action.raise_hand");
     buttons.push(
       <Tooltip label={handLabel} key="raise_hand">
         <CpdButton
@@ -858,12 +866,21 @@ export const InCallView: FC<InCallViewProps> = ({
     >
       {headerStyle !== "none" && (
         <div className={styles.logo}>
-          <LogoMark width={24} height={24} aria-hidden />
-          <LogoType
-            width={80}
-            height={11}
-            aria-label={import.meta.env.VITE_PRODUCT_NAME || "Element Call"}
-          />
+          {brandingLogoMarkUrl() ? (
+            <img src={brandingLogoMarkUrl()} width={24} height={24} alt="" />
+          ) : (
+            <LogoMark width={24} height={24} aria-hidden />
+          )}
+          {brandingLogoTypeUrl() ? (
+            <img
+              src={brandingLogoTypeUrl()}
+              width={80}
+              height={11}
+              alt={productName()}
+            />
+          ) : (
+            <LogoType width={80} height={11} aria-label={productName()} />
+          )}
           {/* Don't mind this odd placement, it's just a little debug label */}
           {debugTileLayout
             ? `Tiles generation: ${tileStoreGeneration}`

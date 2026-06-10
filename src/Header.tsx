@@ -14,6 +14,7 @@ import { UserProfileIcon } from "@vector-im/compound-design-tokens/assets/web/ic
 
 import styles from "./Header.module.css";
 import Logo from "./icons/Logo.svg?react";
+import { brandingLogoUrl } from "./branding";
 import { Avatar, Size } from "./Avatar";
 import { EncryptionLock } from "./room/EncryptionLock";
 import { useMediaQuery } from "./useMediaQuery";
@@ -114,6 +115,7 @@ interface HeaderLogoProps {
 
 export const HeaderLogo: FC<HeaderLogoProps> = ({ className }) => {
   const { t } = useTranslation();
+  const logoUrl = brandingLogoUrl();
 
   return (
     <Link
@@ -121,7 +123,7 @@ export const HeaderLogo: FC<HeaderLogoProps> = ({ className }) => {
       to="/"
       aria-label={t("header_label")}
     >
-      <Logo />
+      {logoUrl ? <img src={logoUrl} alt="" height={30} /> : <Logo />}
     </Link>
   );
 };
