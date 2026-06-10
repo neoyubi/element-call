@@ -4,6 +4,7 @@ import {
   type FormEventHandler,
   type ChangeEvent,
   useCallback,
+  useEffect,
   useId,
   useState,
 } from "react";
@@ -40,6 +41,51 @@ function defaultTimezone(): string {
   }
 }
 
+// Date entered as "dd.mm.YYYY".
+const DATE_REGEX = /^(\d{2})\.(\d{2})\.(\d{4})$/;
+
+// Parse "dd.mm.YYYY" + "HH:MM" into an epoch-ms instant in local time.
+// Returns undefined when the input is malformed or not a real calendar date
+// (e.g. "40.13.2026" or a day that rolled over into the next month).
+function parseStart(dateStr: string, timeStr: string): number | undefined {
+  const match = DATE_REGEX.exec(dateStr.trim());
+  if (!match || !timeStr) return undefined;
+  const [, dd, mm, yyyy] = match;
+  const ms = new Date(`${yyyy}-${mm}-${dd}T${timeStr}`).getTime();
+  if (Number.isNaN(ms)) return undefined;
+  const parsed = new Date(ms);
+  if (parsed.getMonth() + 1 !== Number(mm) || parsed.getDate() !== Number(dd))
+    return undefined;
+  return ms;
+}
+
+// Full IANA zone list where the runtime supports it, else a small fallback.
+// The current/local zone is always present and is the default selection.
+function timezoneOptions(): string[] {
+  const local = defaultTimezone();
+  const intl = Intl as typeof Intl & {
+    supportedValuesOf?: (key: "timeZone") => string[];
+  };
+  let zones: string[] = [];
+  try {
+    if (typeof intl.supportedValuesOf === "function")
+      zones = intl.supportedValuesOf("timeZone");
+  } catch {
+    zones = [];
+  }
+  if (zones.length === 0)
+    zones = [
+      local,
+      "UTC",
+      "Europe/Amsterdam",
+      "Europe/London",
+      "America/New_York",
+    ];
+  return zones.includes(local) ? zones : [local, ...zones];
+}
+
+const TIMEZONE_OPTIONS = timezoneOptions();
+
 interface SuccessResult {
   meetLink: string;
 }
@@ -50,6 +96,9 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
   const [inviteeName, setInviteeName] = useState("");
   const [inviteeEmail, setInviteeEmail] = useState("");
   const [organizerEmail, setOrganizerEmail] = useState("");
+  // True when the organizer email was derived from the logged-in account's
+  // email threepid; the field is then locked to the account identity.
+  const [organizerEmailDerived, setOrganizerEmailDerived] = useState(false);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [duration, setDuration] = useState<number>(DEFAULT_DURATION);
@@ -61,6 +110,21 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SuccessResult>();
 
+  useEffect(() => {
+    client
+      .getThreePids()
+      .then(({ threepids }) => {
+        const email = threepids.find((p) => p.medium === "email")?.address;
+        if (email) {
+          setOrganizerEmail(email);
+          setOrganizerEmailDerived(true);
+        }
+      })
+      .catch((err) => {
+        logger.warn("Could not read account email for organizer field", err);
+      });
+  }, [client]);
+
   const durationId = useId();
   const reminderId = useId();
   const timezoneId = useId();
@@ -68,25 +132,26 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
   const reset = useCallback((): void => {
     setInviteeName("");
     setInviteeEmail("");
-    setOrganizerEmail("");
+    if (!organizerEmailDerived) setOrganizerEmail("");
     setDate("");
     setTime("");
     setDuration(DEFAULT_DURATION);
     setReminder(DEFAULT_REMINDER);
-  }, []);
+  }, [organizerEmailDerived]);
 
   const validate = useCallback((): string | undefined => {
     const name = inviteeName.trim();
-    if (name.length < 1 || name.length > 100) return t("schedule_meeting.error_required");
+    if (name.length < 1 || name.length > 100)
+      return t("schedule_meeting.error_required");
     if (!inviteeEmail.trim()) return t("schedule_meeting.error_required");
     if (!EMAIL_REGEX.test(inviteeEmail.trim()))
       return t("schedule_meeting.error_email");
     if (organizerEmail.trim() && !EMAIL_REGEX.test(organizerEmail.trim()))
       return t("schedule_meeting.error_email");
     if (!date || !time) return t("schedule_meeting.error_required");
-    const start = new Date(`${date}T${time}`).getTime();
-    if (Number.isNaN(start) || start <= Date.now())
-      return t("schedule_meeting.error_past_date");
+    const start = parseStart(date, time);
+    if (start === undefined) return t("schedule_meeting.error_date");
+    if (start <= Date.now()) return t("schedule_meeting.error_past_date");
     return undefined;
   }, [inviteeName, inviteeEmail, organizerEmail, date, time, t]);
 
@@ -103,7 +168,8 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
       }
       setFieldError(undefined);
 
-      const start = new Date(`${date}T${time}`).getTime();
+      const start = parseStart(date, time);
+      if (start === undefined) return; // guarded by validate(); defensive
       const end = start + duration * 60000;
       const name = inviteeName.trim();
 
@@ -229,6 +295,7 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
               label={t("schedule_meeting.organizer_email")}
               placeholder={t("schedule_meeting.organizer_email")}
               autoComplete="off"
+              disabled={organizerEmailDerived}
               value={organizerEmail}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setOrganizerEmail(e.target.value)
@@ -239,9 +306,11 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
             <InputField
               id="meetingDate"
               name="meetingDate"
-              type="date"
+              type="text"
               label={t("schedule_meeting.date")}
+              placeholder={t("schedule_meeting.date_format")}
               required
+              autoComplete="off"
               value={date}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setDate(e.target.value)
@@ -261,7 +330,9 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
           </div>
           <div className={styles.row}>
             <div className={styles.selectField}>
-              <label htmlFor={durationId}>{t("schedule_meeting.duration")}</label>
+              <label htmlFor={durationId}>
+                {t("schedule_meeting.duration")}
+              </label>
               <select
                 id={durationId}
                 className={styles.select}
@@ -278,7 +349,9 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
               </select>
             </div>
             <div className={styles.selectField}>
-              <label htmlFor={reminderId}>{t("schedule_meeting.reminder")}</label>
+              <label htmlFor={reminderId}>
+                {t("schedule_meeting.reminder")}
+              </label>
               <select
                 id={reminderId}
                 className={styles.select}
@@ -298,20 +371,22 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
           </div>
           <div className={styles.selectField}>
             <label htmlFor={timezoneId}>{t("schedule_meeting.timezone")}</label>
-            <input
+            <select
               id={timezoneId}
               className={styles.select}
-              type="text"
-              autoComplete="off"
               value={timezone}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+              onChange={(e: ChangeEvent<HTMLSelectElement>) =>
                 setTimezone(e.target.value)
               }
-            />
+            >
+              {TIMEZONE_OPTIONS.map((tz) => (
+                <option key={tz} value={tz}>
+                  {tz}
+                </option>
+              ))}
+            </select>
           </div>
-          {fieldError && (
-            <p className={styles.error}>{fieldError}</p>
-          )}
+          {fieldError && <p className={styles.error}>{fieldError}</p>}
           {submitError && (
             <FieldRow>
               <ErrorMessage error={submitError} />

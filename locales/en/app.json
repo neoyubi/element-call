@@ -245,7 +245,9 @@
   "schedule_meeting": {
     "copy_link": "Copy link",
     "date": "Date",
+    "date_format": "dd.mm.YYYY",
     "duration": "Duration",
+    "error_date": "Enter the date as dd.mm.YYYY",
     "error_email": "Please enter a valid email address",
     "error_past_date": "The meeting must start in the future",
     "error_required": "This field is required",
