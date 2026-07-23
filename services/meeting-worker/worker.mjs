@@ -16,7 +16,9 @@ const REMINDER_DEFAULT_MINUTES = parseInt(
   process.env.REMINDER_DEFAULT_MINUTES || "30",
   10,
 );
-const REMINDER_LANG = process.env.REMINDER_LANG === "nl" ? "nl" : "en";
+const REMINDER_LANG = ["nl", "de"].includes(process.env.REMINDER_LANG)
+  ? process.env.REMINDER_LANG
+  : "en";
 const POLL_INTERVAL_MS = parseInt(process.env.POLL_INTERVAL_MS || "60000", 10);
 const MEETING_RETENTION_DAYS = parseInt(
   process.env.MEETING_RETENTION_DAYS || "30",

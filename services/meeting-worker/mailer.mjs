@@ -34,7 +34,8 @@ function getTransport() {
 
 // Format a start instant in the meeting's IANA timezone for human display.
 function formatStart(startMs, tzid, lang) {
-  const locale = lang === "nl" ? "nl-NL" : "en-GB";
+  const locale =
+    lang === "nl" ? "nl-NL" : lang === "de" ? "de-DE" : "en-GB";
   try {
     return new Intl.DateTimeFormat(locale, {
       dateStyle: "full",
@@ -82,6 +83,28 @@ function buildMessage({ prospectName, startMs, tzid, minutes, meetLink, lang }) 
       "<p>Je hebt een afspraak ingepland.</p>",
       `<p>Start: ${escapeHtml(when)}</p>`,
       `<p>Deelnemen via deze link:<br><a href="${escapeHtml(meetLink)}">${escapeHtml(meetLink)}</a></p>`,
+    ].join("\n");
+    return { subject, text, html };
+  }
+
+  if (lang === "de") {
+    const greeting = name ? `Guten Tag ${name},` : "Guten Tag,";
+    const subject = `Erinnerung: Ihr Termin beginnt in ${minutes} Minuten`;
+    const text = [
+      greeting,
+      "",
+      "Sie haben einen geplanten Termin.",
+      `Beginn: ${when}`,
+      "",
+      "Nehmen Sie über diesen Link teil:",
+      meetLink,
+      "",
+    ].join("\n");
+    const html = [
+      `<p>${escapeHtml(greeting)}</p>`,
+      "<p>Sie haben einen geplanten Termin.</p>",
+      `<p>Beginn: ${escapeHtml(when)}</p>`,
+      `<p>Nehmen Sie über diesen Link teil:<br><a href="${escapeHtml(meetLink)}">${escapeHtml(meetLink)}</a></p>`,
     ].join("\n");
     return { subject, text, html };
   }
