@@ -34,7 +34,7 @@ function getTransport() {
 
 // Format a start instant in the meeting's IANA timezone for human display.
 function formatStart(startMs, tzid, lang) {
-  const locale = lang === "en" ? "en-GB" : "nl-NL";
+  const locale = lang === "nl" ? "nl-NL" : "en-GB";
   try {
     return new Intl.DateTimeFormat(locale, {
       dateStyle: "full",
@@ -64,46 +64,46 @@ function buildMessage({ prospectName, startMs, tzid, minutes, meetLink, lang }) 
   const when = formatStart(startMs, tzid, lang);
   const name = prospectName ? String(prospectName).trim() : "";
 
-  if (lang === "en") {
-    const greeting = name ? `Hi ${name},` : "Hi,";
-    const subject = `Reminder: your appointment starts in ${minutes} minutes`;
+  if (lang === "nl") {
+    const greeting = name ? `Beste ${name},` : "Beste,";
+    const subject = `Herinnering: je afspraak begint over ${minutes} minuten`;
     const text = [
       greeting,
       "",
-      "You have a scheduled appointment.",
+      "Je hebt een afspraak ingepland.",
       `Start: ${when}`,
       "",
-      "Join via this link:",
+      "Deelnemen via deze link:",
       meetLink,
       "",
     ].join("\n");
     const html = [
       `<p>${escapeHtml(greeting)}</p>`,
-      "<p>You have a scheduled appointment.</p>",
+      "<p>Je hebt een afspraak ingepland.</p>",
       `<p>Start: ${escapeHtml(when)}</p>`,
-      `<p>Join via this link:<br><a href="${escapeHtml(meetLink)}">${escapeHtml(meetLink)}</a></p>`,
+      `<p>Deelnemen via deze link:<br><a href="${escapeHtml(meetLink)}">${escapeHtml(meetLink)}</a></p>`,
     ].join("\n");
     return { subject, text, html };
   }
 
-  // Dutch (default).
-  const greeting = name ? `Beste ${name},` : "Beste,";
-  const subject = `Herinnering: je afspraak begint over ${minutes} minuten`;
+  // English (default).
+  const greeting = name ? `Hi ${name},` : "Hi,";
+  const subject = `Reminder: your appointment starts in ${minutes} minutes`;
   const text = [
     greeting,
     "",
-    "Je hebt een afspraak ingepland.",
+    "You have a scheduled appointment.",
     `Start: ${when}`,
     "",
-    "Deelnemen via deze link:",
+    "Join via this link:",
     meetLink,
     "",
   ].join("\n");
   const html = [
     `<p>${escapeHtml(greeting)}</p>`,
-    "<p>Je hebt een afspraak ingepland.</p>",
+    "<p>You have a scheduled appointment.</p>",
     `<p>Start: ${escapeHtml(when)}</p>`,
-    `<p>Deelnemen via deze link:<br><a href="${escapeHtml(meetLink)}">${escapeHtml(meetLink)}</a></p>`,
+    `<p>Join via this link:<br><a href="${escapeHtml(meetLink)}">${escapeHtml(meetLink)}</a></p>`,
   ].join("\n");
   return { subject, text, html };
 }
