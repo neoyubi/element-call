@@ -131,6 +131,87 @@ function buildMessage({ prospectName, startMs, tzid, minutes, meetLink, lang }) 
   return { subject, text, html };
 }
 
+function buildRescheduleMessage({
+  prospectName,
+  previousStartMs,
+  startMs,
+  tzid,
+  meetLink,
+  lang,
+}) {
+  const oldWhen = formatStart(previousStartMs, tzid, lang);
+  const newWhen = formatStart(startMs, tzid, lang);
+  const name = prospectName ? String(prospectName).trim() : "";
+
+  if (lang === "nl") {
+    const greeting = name ? `Beste ${name},` : "Beste,";
+    const subject = "Je afspraak is verplaatst";
+    const text = [
+      greeting,
+      "",
+      "Je afspraak is verplaatst naar een nieuw tijdstip.",
+      `Oude tijd: ${oldWhen}`,
+      `Nieuwe tijd: ${newWhen}`,
+      "",
+      "Deelnemen via deze link:",
+      meetLink,
+      "",
+    ].join("\n");
+    const html = [
+      `<p>${escapeHtml(greeting)}</p>`,
+      "<p>Je afspraak is verplaatst naar een nieuw tijdstip.</p>",
+      `<p>Oude tijd: ${escapeHtml(oldWhen)}<br>Nieuwe tijd: ${escapeHtml(newWhen)}</p>`,
+      `<p>Deelnemen via deze link:<br><a href="${escapeHtml(meetLink)}">${escapeHtml(meetLink)}</a></p>`,
+    ].join("\n");
+    return { subject, text, html };
+  }
+
+  if (lang === "de") {
+    const greeting = name ? `Guten Tag ${name},` : "Guten Tag,";
+    const subject = "Ihr Termin wurde verschoben";
+    const text = [
+      greeting,
+      "",
+      "Ihr Termin wurde auf einen neuen Zeitpunkt verschoben.",
+      `Alter Zeitpunkt: ${oldWhen}`,
+      `Neuer Zeitpunkt: ${newWhen}`,
+      "",
+      "Nehmen Sie über diesen Link teil:",
+      meetLink,
+      "",
+    ].join("\n");
+    const html = [
+      `<p>${escapeHtml(greeting)}</p>`,
+      "<p>Ihr Termin wurde auf einen neuen Zeitpunkt verschoben.</p>",
+      `<p>Alter Zeitpunkt: ${escapeHtml(oldWhen)}<br>Neuer Zeitpunkt: ${escapeHtml(newWhen)}</p>`,
+      `<p>Nehmen Sie über diesen Link teil:<br><a href="${escapeHtml(meetLink)}">${escapeHtml(meetLink)}</a></p>`,
+    ].join("\n");
+    return { subject, text, html };
+  }
+
+  // English (default).
+  const greeting = name ? `Hi ${name},` : "Hi,";
+  const subject = "Your appointment has been moved";
+  const text = [
+    greeting,
+    "",
+    "Your appointment has been moved to a new time.",
+    `Old time: ${oldWhen}`,
+    `New time: ${newWhen}`,
+    "",
+    "Join via this link:",
+    meetLink,
+    "",
+  ].join("\n");
+  const html = [
+    `<p>${escapeHtml(greeting)}</p>`,
+    "<p>Your appointment has been moved to a new time.</p>",
+    `<p>Old time: ${escapeHtml(oldWhen)}<br>New time: ${escapeHtml(newWhen)}</p>`,
+    `<p>Join via this link:<br><a href="${escapeHtml(meetLink)}">${escapeHtml(meetLink)}</a></p>`,
+  ].join("\n");
+  return { subject, text, html };
+}
+
 // Send a single reminder. `to` may be a string or an array of recipients.
 // Throws on SMTP failure so the caller can leave reminder_sent unset and retry.
 export async function sendReminder({
@@ -155,6 +236,44 @@ export async function sendReminder({
     startMs,
     tzid,
     minutes,
+    meetLink,
+    lang,
+  });
+
+  await getTransport().sendMail({
+    from: SMTP_FROM,
+    to: recipients,
+    subject,
+    text,
+    html,
+  });
+}
+
+// Send a reschedule notice ("your appointment moved from X to Y"). `to` may
+// be a string or an array of recipients. Throws on SMTP failure so the caller
+// can leave reschedule_notified unset and retry.
+export async function sendReschedule({
+  to,
+  prospectName,
+  previousStartMs,
+  startMs,
+  tzid,
+  meetLink,
+  lang,
+}) {
+  const recipients = (Array.isArray(to) ? to : [to])
+    .map((addr) => (addr ? String(addr).trim() : ""))
+    .filter(Boolean);
+
+  if (recipients.length === 0) {
+    throw new Error("sendReschedule: no recipients");
+  }
+
+  const { subject, text, html } = buildRescheduleMessage({
+    prospectName,
+    previousStartMs,
+    startMs,
+    tzid,
     meetLink,
     lang,
   });

@@ -1,9 +1,9 @@
 {
   "name": "meeting-worker",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "Sends meeting reminder emails and enforces meeting data retention.",
+  "description": "Sends meeting reminder and reschedule emails and enforces meeting data retention.",
   "main": "worker.mjs",
   "scripts": {
     "start": "node worker.mjs"
