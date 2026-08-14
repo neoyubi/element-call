@@ -25,17 +25,22 @@
   padding: 0 12px 12px;
 }
 
+.meetingItem {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--cpd-color-border-disabled);
+}
+
+.meetingItem:first-child {
+  border-top: none;
+}
+
 .meetingTile {
   display: flex;
   align-items: center;
   padding: 10px 0;
   color: inherit;
-  border-top: 1px solid var(--cpd-color-border-disabled);
   gap: 8px;
-}
-
-.meetingTile:first-child {
-  border-top: none;
 }
 
 .meetingLink {
@@ -51,7 +56,8 @@
   opacity: 0.8;
 }
 
-.deleteButton {
+.deleteButton,
+.editButton {
   flex-shrink: 0;
   opacity: 0;
   transition: opacity 0.15s;
@@ -62,7 +68,12 @@
   color: var(--cpd-color-text-critical-primary);
 }
 
-.meetingTile:hover .deleteButton {
+.editButton:hover {
+  color: var(--cpd-color-text-primary);
+}
+
+.meetingTile:hover .deleteButton,
+.meetingTile:hover .editButton {
   opacity: 1;
 }
 
@@ -99,6 +110,70 @@
 
 .confirmNo:hover {
   background: var(--cpd-color-bg-subtle-primary);
+}
+
+.editRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 0 10px;
+}
+
+.editFields {
+  display: flex;
+  gap: 6px;
+}
+
+.editInput,
+.editSelect {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--cpd-font-size-body-sm);
+  color: var(--cpd-color-text-primary);
+  background-color: var(--cpd-color-bg-canvas-default);
+  border: 1px solid var(--cpd-color-border-interactive-primary);
+  border-radius: 4px;
+  padding: 6px 8px;
+  box-sizing: border-box;
+}
+
+.editInput:focus,
+.editSelect:focus {
+  outline: none;
+  border-color: var(--cpd-color-border-focused);
+}
+
+.editError {
+  margin: 0;
+  font-size: var(--cpd-font-size-body-sm);
+  font-weight: 600;
+  color: var(--cpd-color-text-critical-primary);
+}
+
+.editActions {
+  display: flex;
+  gap: 4px;
+}
+
+.editSave {
+  border: none;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  line-height: 1;
+  background: var(--cpd-color-bg-action-primary-rest);
+  color: var(--cpd-color-text-on-solid-primary);
+}
+
+.editSave:hover {
+  background: var(--cpd-color-bg-action-primary-hovered);
+}
+
+.editSave:disabled {
+  cursor: default;
+  background: var(--cpd-color-bg-action-primary-disabled);
 }
 
 .meetingInfo {

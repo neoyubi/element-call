@@ -193,13 +193,17 @@
     "date_at": "{{date}} at {{time}}",
     "delete": "Delete",
     "delete_meeting": "Delete meeting",
+    "edit_meeting": "Edit meeting",
     "hide_calendar": "Hide calendar",
     "in_progress": "In progress",
+    "save": "Save",
+    "saving": "Saving…",
     "show_calendar": "Show calendar",
     "starts_in": "Starts in {{time}}",
     "today_at": "Today at {{time}}",
     "tomorrow_at": "Tomorrow at {{time}}",
-    "upcoming": "Upcoming Meetings"
+    "upcoming": "Upcoming Meetings",
+    "update_failed": "Could not update the meeting"
   },
   "microphone_off": "Microphone off",
   "microphone_on": "Microphone on",

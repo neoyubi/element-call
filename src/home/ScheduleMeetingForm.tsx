@@ -15,6 +15,7 @@ import { logger } from "matrix-js-sdk/lib/logger";
 
 import { Config } from "../config/Config";
 import { FieldRow, InputField, ErrorMessage } from "../input/Input";
+import { parseStart } from "./dateFormat";
 import styles from "./ScheduleMeetingForm.module.css";
 
 interface Props {
@@ -39,24 +40,6 @@ function defaultTimezone(): string {
   } catch {
     return DEFAULT_TIMEZONE;
   }
-}
-
-// Date entered as "dd.mm.YYYY".
-const DATE_REGEX = /^(\d{2})\.(\d{2})\.(\d{4})$/;
-
-// Parse "dd.mm.YYYY" + "HH:MM" into an epoch-ms instant in local time.
-// Returns undefined when the input is malformed or not a real calendar date
-// (e.g. "40.13.2026" or a day that rolled over into the next month).
-function parseStart(dateStr: string, timeStr: string): number | undefined {
-  const match = DATE_REGEX.exec(dateStr.trim());
-  if (!match || !timeStr) return undefined;
-  const [, dd, mm, yyyy] = match;
-  const ms = new Date(`${yyyy}-${mm}-${dd}T${timeStr}`).getTime();
-  if (Number.isNaN(ms)) return undefined;
-  const parsed = new Date(ms);
-  if (parsed.getMonth() + 1 !== Number(mm) || parsed.getDate() !== Number(dd))
-    return undefined;
-  return ms;
 }
 
 // Full IANA zone list where the runtime supports it, else a small fallback.
