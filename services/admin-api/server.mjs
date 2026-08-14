@@ -532,7 +532,21 @@ async function updateMeetingRoom(roomId, body) {
   const tz = merge(timezone, "timezone", "Europe/Amsterdam");
   const organizerEmail = merge(organizer_email, "organizer_email");
   const prospectEmail = merge(prospect_email, "prospect_email");
-  const meetLink = current.meet_link || "";
+
+  // The join link embeds the start time as a lobby-countdown query param, so
+  // it goes stale when the meeting moves. Refresh only that param: the path
+  // and password derive from the alias and key_material (both unchanged), so
+  // previously emailed links keep working.
+  let meetLink = current.meet_link || "";
+  if (startChanged && meetLink) {
+    try {
+      const linkUrl = new URL(meetLink);
+      linkUrl.searchParams.set("meetingStart", String(newStart));
+      meetLink = linkUrl.toString();
+    } catch {
+      // Unparseable stored link: carry it through unchanged.
+    }
+  }
 
   const newState = {
     booking_id: merge(booking_id, "booking_id"),
@@ -556,6 +570,20 @@ async function updateMeetingRoom(roomId, body) {
   // worker re-arms and re-sends the reminder for the new time.
   if (current.reminder_sent !== undefined && !startChanged) {
     newState.reminder_sent = current.reminder_sent;
+  }
+  // Reschedule notice for the worker: when the start moved, record the
+  // previous start and clear the notified flag so the worker emails the
+  // attendees about the new time. On other updates both fields are carried
+  // forward unchanged (mirroring the reminder_sent carry above).
+  if (startChanged && Number.isFinite(Number(current.scheduled_start))) {
+    newState.reschedule_previous_start = current.scheduled_start;
+  } else if (!startChanged) {
+    if (current.reschedule_previous_start !== undefined) {
+      newState.reschedule_previous_start = current.reschedule_previous_start;
+    }
+    if (current.reschedule_notified !== undefined) {
+      newState.reschedule_notified = current.reschedule_notified;
+    }
   }
 
   // Update the meeting state event
@@ -596,7 +624,7 @@ async function updateMeetingRoom(roomId, body) {
     sequence,
     startMs: newStart,
     endMs: newEnd,
-    roomName: room_name || newState.booking_id,
+    roomName: room_name || newState.prospect_name || newState.booking_id,
     meetLink,
     timezone: tz,
     organizerEmail,
