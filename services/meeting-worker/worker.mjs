@@ -125,8 +125,16 @@ async function deleteCaldavEvent(uid) {
   throw new Error(`CalDAV delete failed (status ${resp.status})`);
 }
 
-// --- Task 1: reminder emails ---
-async function processReminders() {
+// --- Task 1: reminder + reschedule emails ---
+//
+// Both notices live in the same state event and a Matrix state PUT is a full
+// replace, so handling them in separate passes could race: two passes reading
+// the same revision and each writing back its own stamp would silently drop
+// the other's, re-sending that email on the next tick. Instead one pass per
+// room reads the state once, applies the reschedule notice first (a moved
+// meeting announces the move before any reminder for the new time), then the
+// reminder, and persists everything with a single write.
+async function processMeetingEmails() {
   const now = Date.now();
   const rooms = await listJoinedRooms();
 
@@ -135,209 +143,160 @@ async function processReminders() {
     try {
       meeting = await getMeetingState(roomId);
     } catch (err) {
-      console.warn(`Reminder: failed to read state for a room: ${err.message}`);
+      console.warn(`Emails: failed to read state for a room: ${err.message}`);
       continue;
     }
     if (!meeting) continue; // not a meeting room
 
-    const start = Number(meeting.scheduled_start);
-    if (!Number.isFinite(start)) continue;
+    const bookingId = meeting.booking_id || "?";
+    // Working copy: both notices stamp into this and one PUT persists it,
+    // preserving every other field incl. key_material.
+    const updated = { ...meeting };
+    let changed = false;
 
+    // -- Reschedule notice --
+    const previousStart = Number(meeting.reschedule_previous_start);
+    if (Number.isFinite(previousStart) && !meeting.reschedule_notified) {
+      const recipients = [
+        meeting.prospect_email,
+        meeting.organizer_email,
+      ].filter(Boolean);
+      const end = Number(meeting.scheduled_end);
+      if (recipients.length === 0) {
+        // No recipient to notify; stamp so we stop retrying this meeting.
+        updated.reschedule_notified = now;
+        changed = true;
+        console.warn(
+          `Reschedule: meeting has no recipient (booking ${bookingId}); marking notified`,
+        );
+      } else if (Number.isFinite(end) && now >= end) {
+        // Meeting already over: the change is no longer actionable, so stamp
+        // without emailing. This also bounds the SMTP-failure retry loop.
+        updated.reschedule_notified = now;
+        changed = true;
+        console.log(
+          `Reschedule: marked past-end meeting notified without emailing (booking ${bookingId})`,
+        );
+      } else if (!meeting.meet_link) {
+        // Without a stored link there is nothing useful to send; skip quietly.
+        console.warn(
+          `Reschedule: meeting has no meet_link (booking ${bookingId}); skipping`,
+        );
+      } else if (MEETING_DRY_RUN) {
+        console.log(
+          `Reschedule (dry-run): would notify booking ${bookingId} (${recipients.length} recipient(s))`,
+        );
+      } else {
+        try {
+          await sendReschedule({
+            to: recipients,
+            prospectName: meeting.prospect_name,
+            previousStartMs: previousStart,
+            startMs: Number(meeting.scheduled_start),
+            tzid: meeting.timezone,
+            meetLink: meeting.meet_link,
+            lang: REMINDER_LANG,
+          });
+          updated.reschedule_notified = now;
+          changed = true;
+          console.log(
+            `Reschedule: notice sent for booking ${bookingId} (${recipients.length} recipient(s))`,
+          );
+        } catch (err) {
+          // SMTP failure: leave reschedule_notified unset so we retry next
+          // tick (bounded — once now >= scheduled_end the branch above
+          // stamps it). Log only the error code: nodemailer's message can
+          // embed the recipient address from an MTA rejection, which must
+          // not hit logs.
+          console.warn(
+            `Reschedule: send failed (booking ${bookingId}): ${err.code ?? "SMTP_ERROR"}`,
+          );
+        }
+      }
+    }
+
+    // -- Reminder --
+    const start = Number(meeting.scheduled_start);
     const reminderMinutes = Number.isFinite(Number(meeting.reminder_minutes))
       ? Number(meeting.reminder_minutes)
       : REMINDER_DEFAULT_MINUTES;
 
-    // No reminder requested, or already handled.
-    if (reminderMinutes <= 0) continue;
-    if (meeting.reminder_sent) continue;
-
-    // Past start: never email, but stamp reminder_sent to stop re-scanning.
-    if (now >= start) {
-      const ok = await putMeetingState(roomId, {
-        ...meeting,
-        reminder_sent: now,
-      });
-      if (ok) {
+    if (
+      Number.isFinite(start) &&
+      reminderMinutes > 0 &&
+      !meeting.reminder_sent
+    ) {
+      if (now >= start) {
+        // Past start: never email, but stamp reminder_sent to stop
+        // re-scanning.
+        updated.reminder_sent = now;
+        changed = true;
         console.log(
-          `Reminder: marked past-start meeting sent without emailing (booking ${meeting.booking_id || "?"})`,
+          `Reminder: marked past-start meeting sent without emailing (booking ${bookingId})`,
+        );
+      } else if (now >= start - reminderMinutes * 60000) {
+        const meetLink = meeting.meet_link;
+        if (!meetLink) {
+          // Without a stored link there is nothing to send; skip quietly.
+          console.warn(
+            `Reminder: meeting has no meet_link (booking ${bookingId}); skipping`,
+          );
+        } else {
+          const recipients = [
+            meeting.prospect_email,
+            meeting.organizer_email,
+          ].filter(Boolean);
+          if (recipients.length === 0) {
+            // No recipient to notify; stamp so we stop retrying.
+            updated.reminder_sent = now;
+            changed = true;
+            console.warn(
+              `Reminder: meeting has no recipient (booking ${bookingId}); marking sent`,
+            );
+          } else {
+            try {
+              await sendReminder({
+                to: recipients,
+                prospectName: meeting.prospect_name,
+                startMs: start,
+                tzid: meeting.timezone,
+                minutes: reminderMinutes,
+                meetLink,
+                lang: REMINDER_LANG,
+              });
+              updated.reminder_sent = now;
+              changed = true;
+              console.log(
+                `Reminder: sent for booking ${bookingId} (${recipients.length} recipient(s))`,
+              );
+            } catch (err) {
+              // SMTP failure: leave reminder_sent unset so we retry next
+              // tick (bounded — the past-start branch stamps it). Error
+              // code only, as above.
+              console.warn(
+                `Reminder: send failed (booking ${bookingId}): ${err.code ?? "SMTP_ERROR"}`,
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // Single write per room. A successful send is stamped even when another
+    // send for the same room failed, so nothing already emailed is lost.
+    if (changed) {
+      const ok = await putMeetingState(roomId, updated);
+      if (!ok) {
+        // Stamps did not persist; already-sent emails may repeat next tick.
+        console.warn(
+          `Emails: failed to persist notification stamps (booking ${bookingId})`,
         );
       }
-      continue;
-    }
-
-    // Outside the send window (too early).
-    if (now < start - reminderMinutes * 60000) continue;
-
-    const meetLink = meeting.meet_link;
-    if (!meetLink) {
-      // Without a stored link there is nothing to send; skip quietly.
-      console.warn(
-        `Reminder: meeting has no meet_link (booking ${meeting.booking_id || "?"}); skipping`,
-      );
-      continue;
-    }
-
-    const recipients = [meeting.prospect_email, meeting.organizer_email].filter(
-      Boolean,
-    );
-    if (recipients.length === 0) {
-      // No recipient to notify; stamp so we stop retrying this meeting.
-      await putMeetingState(roomId, { ...meeting, reminder_sent: now });
-      console.warn(
-        `Reminder: meeting has no recipient (booking ${meeting.booking_id || "?"}); marking sent`,
-      );
-      continue;
-    }
-
-    try {
-      await sendReminder({
-        to: recipients,
-        prospectName: meeting.prospect_name,
-        startMs: start,
-        tzid: meeting.timezone,
-        minutes: reminderMinutes,
-        meetLink,
-        lang: REMINDER_LANG,
-      });
-    } catch (err) {
-      // SMTP failure: leave reminder_sent unset so we retry next tick
-      // (bounded — once now >= start the past-start branch stamps it).
-      // Log only the error code: nodemailer's message can embed the
-      // recipient address from an MTA rejection, which must not hit logs.
-      console.warn(
-        `Reminder: send failed (booking ${meeting.booking_id || "?"}): ${err.code ?? "SMTP_ERROR"}`,
-      );
-      continue;
-    }
-
-    // Stamp reminder_sent, preserving every other field incl. key_material.
-    const ok = await putMeetingState(roomId, { ...meeting, reminder_sent: now });
-    if (ok) {
-      console.log(
-        `Reminder: sent for booking ${meeting.booking_id || "?"} (${recipients.length} recipient(s))`,
-      );
-    } else {
-      // Email went out but the flag did not persist. Next tick will resend.
-      console.warn(
-        `Reminder: email sent but failed to persist reminder_sent (booking ${meeting.booking_id || "?"})`,
-      );
     }
   }
 }
 
-// --- Task 2: reschedule notices ---
-//
-// The admin API stamps reschedule_previous_start (and clears
-// reschedule_notified) on a meeting whenever its start time moves. This task
-// emails the attendees the old and new time, then stamps reschedule_notified
-// so the notice fires exactly once per move.
-async function processReschedules() {
-  const now = Date.now();
-  const rooms = await listJoinedRooms();
-
-  for (const roomId of rooms) {
-    let meeting;
-    try {
-      meeting = await getMeetingState(roomId);
-    } catch (err) {
-      console.warn(
-        `Reschedule: failed to read state for a room: ${err.message}`,
-      );
-      continue;
-    }
-    if (!meeting) continue; // not a meeting room
-
-    const previousStart = Number(meeting.reschedule_previous_start);
-    if (!Number.isFinite(previousStart)) continue; // never rescheduled
-    if (meeting.reschedule_notified) continue; // already handled
-
-    const bookingId = meeting.booking_id || "?";
-
-    const recipients = [meeting.prospect_email, meeting.organizer_email].filter(
-      Boolean,
-    );
-    if (recipients.length === 0) {
-      // No recipient to notify; stamp so we stop retrying this meeting.
-      await putMeetingState(roomId, { ...meeting, reschedule_notified: now });
-      console.warn(
-        `Reschedule: meeting has no recipient (booking ${bookingId}); marking notified`,
-      );
-      continue;
-    }
-
-    // Meeting already over: the change is no longer actionable, so stamp
-    // without emailing. This also bounds the SMTP-failure retry loop below.
-    const end = Number(meeting.scheduled_end);
-    if (Number.isFinite(end) && now >= end) {
-      const ok = await putMeetingState(roomId, {
-        ...meeting,
-        reschedule_notified: now,
-      });
-      if (ok) {
-        console.log(
-          `Reschedule: marked past-end meeting notified without emailing (booking ${bookingId})`,
-        );
-      }
-      continue;
-    }
-
-    const meetLink = meeting.meet_link;
-    if (!meetLink) {
-      // Without a stored link there is nothing useful to send; skip quietly.
-      console.warn(
-        `Reschedule: meeting has no meet_link (booking ${bookingId}); skipping`,
-      );
-      continue;
-    }
-
-    if (MEETING_DRY_RUN) {
-      console.log(
-        `Reschedule (dry-run): would notify booking ${bookingId} (${recipients.length} recipient(s))`,
-      );
-      continue;
-    }
-
-    try {
-      await sendReschedule({
-        to: recipients,
-        prospectName: meeting.prospect_name,
-        previousStartMs: previousStart,
-        startMs: Number(meeting.scheduled_start),
-        tzid: meeting.timezone,
-        meetLink,
-        lang: REMINDER_LANG,
-      });
-    } catch (err) {
-      // SMTP failure: leave reschedule_notified unset so we retry next tick
-      // (bounded — once now >= scheduled_end the branch above stamps it).
-      // Log only the error code: nodemailer's message can embed the
-      // recipient address from an MTA rejection, which must not hit logs.
-      console.warn(
-        `Reschedule: send failed (booking ${bookingId}): ${err.code ?? "SMTP_ERROR"}`,
-      );
-      continue;
-    }
-
-    // Stamp reschedule_notified, preserving every other field incl.
-    // key_material.
-    const ok = await putMeetingState(roomId, {
-      ...meeting,
-      reschedule_notified: now,
-    });
-    if (ok) {
-      console.log(
-        `Reschedule: notice sent for booking ${bookingId} (${recipients.length} recipient(s))`,
-      );
-    } else {
-      // Email went out but the flag did not persist. Next tick will resend.
-      console.warn(
-        `Reschedule: email sent but failed to persist reschedule_notified (booking ${bookingId})`,
-      );
-    }
-  }
-}
-
-// --- Task 3: retention purge ---
+// --- Task 2: retention purge ---
 const PII_FIELDS = [
   "organizer_name",
   "prospect_name",
@@ -413,29 +372,16 @@ async function processRetention() {
 }
 
 // --- Scheduling ---
-let reminderRunning = false;
-async function reminderTick() {
-  if (reminderRunning) return; // never overlap a slow tick with the next
-  reminderRunning = true;
+let emailsRunning = false;
+async function emailsTick() {
+  if (emailsRunning) return; // never overlap a slow tick with the next
+  emailsRunning = true;
   try {
-    await processReminders();
+    await processMeetingEmails();
   } catch (err) {
-    console.error(`Reminder tick error: ${err.message}`);
+    console.error(`Email tick error: ${err.message}`);
   } finally {
-    reminderRunning = false;
-  }
-}
-
-let rescheduleRunning = false;
-async function rescheduleTick() {
-  if (rescheduleRunning) return; // never overlap a slow tick with the next
-  rescheduleRunning = true;
-  try {
-    await processReschedules();
-  } catch (err) {
-    console.error(`Reschedule tick error: ${err.message}`);
-  } finally {
-    rescheduleRunning = false;
+    emailsRunning = false;
   }
 }
 
@@ -457,13 +403,10 @@ function main() {
     `meeting-worker starting (poll ${POLL_INTERVAL_MS}ms, retention ${MEETING_RETENTION_DAYS}d, lang ${REMINDER_LANG}${MEETING_DRY_RUN ? ", DRY RUN" : ""})`,
   );
 
-  // Reminders: every POLL_INTERVAL_MS, plus an immediate first pass.
-  void reminderTick();
-  setInterval(() => void reminderTick(), POLL_INTERVAL_MS);
-
-  // Reschedule notices: same cadence as reminders.
-  void rescheduleTick();
-  setInterval(() => void rescheduleTick(), POLL_INTERVAL_MS);
+  // Reminder + reschedule emails: every POLL_INTERVAL_MS, plus an immediate
+  // first pass.
+  void emailsTick();
+  setInterval(() => void emailsTick(), POLL_INTERVAL_MS);
 
   // Retention: daily, plus an immediate first pass.
   void retentionTick();
