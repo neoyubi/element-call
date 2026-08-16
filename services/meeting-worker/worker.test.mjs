@@ -404,6 +404,48 @@ describe("retention purge", () => {
     assert.equal(calls.at(-1).target, "caldav");
   });
 
+  test("scheduling is handed to the client before the resource is removed", async () => {
+    rooms.set(ROOM_ID, expired());
+
+    await processRetention();
+
+    assert.deepEqual(
+      calls.map((call) => `${call.target}:${call.method}`),
+      ["state:PUT", "caldav:PUT", "caldav:DELETE"],
+    );
+    const revision = caldavCalls()[0].ics;
+    assert.match(
+      revision,
+      /^ORGANIZER;SCHEDULE-AGENT=CLIENT:mailto:calendar@example\.com$/m,
+    );
+    assert.match(revision, /^UID:booking-b-1@example\.com$/m);
+    assert.match(revision, /^SEQUENCE:5$/m);
+    assert.match(revision, /^SUMMARY:Appointment$/m);
+    // Built from the copy taken before redaction, so the attendees the server
+    // would otherwise mail a cancellation are still on the resource.
+    assert.match(
+      revision,
+      /^ATTENDEE:mailto:organizer-fixture@example\.invalid$/m,
+    );
+  });
+
+  test("a resource with no organizer is removed without a revision", async () => {
+    process.env.CALDAV_USER = "jdoe";
+    try {
+      const service = await import("./worker.mjs?no-organizer");
+      rooms.set(ROOM_ID, expired());
+
+      await service.processRetention();
+
+      assert.deepEqual(
+        caldavCalls().map((call) => call.method),
+        ["DELETE"],
+      );
+    } finally {
+      process.env.CALDAV_USER = "calendar@example.com";
+    }
+  });
+
   test("an already redacted meeting is not rewritten", async () => {
     rooms.set(
       ROOM_ID,

@@ -100,6 +100,19 @@ async function listJoinedRooms() {
 }
 
 // --- CalDAV (retention purge only) ---
+//
+// The two services ship as separate images and share no code, so the little
+// iCalendar the purge needs is written here rather than imported.
+
+// The organizer address, configured in its own right because a CalDAV login is
+// not always an address. See the room service for the full reasoning.
+const CALDAV_ORGANIZER_EMAIL =
+  process.env.CALDAV_ORGANIZER_EMAIL ||
+  (CALDAV_USER?.includes("@") ? CALDAV_USER : undefined);
+
+const MEETING_SUMMARY_TEMPLATE =
+  process.env.MEETING_SUMMARY_TEMPLATE || "Appointment";
+
 function caldavAuthHeader() {
   const token = Buffer.from(`${CALDAV_USER}:${CALDAV_PASSWORD}`).toString(
     "base64",
@@ -107,14 +120,108 @@ function caldavAuthHeader() {
   return `Basic ${token}`;
 }
 
+function caldavConfigured() {
+  return Boolean(CALDAV_URL_BASE && CALDAV_USER && CALDAV_PASSWORD);
+}
+
+function caldavUrl(uid) {
+  return `${CALDAV_URL_BASE}/${encodeURIComponent(uid)}.ics`;
+}
+
+// Reject with the response status attached, so a caller can tell a permanent
+// configuration error from a transient one without reading a message that may
+// quote the collection URL.
+function caldavError(status) {
+  const err = new Error(
+    status ? `CalDAV request rejected (${status})` : "CalDAV request failed",
+  );
+  err.status = status;
+  return err;
+}
+
+function icsText(value) {
+  return String(value ?? "")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,");
+}
+
+function icsUtc(ms) {
+  return new Date(ms)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
+}
+
+// RFC 5545 3.1: fold at 75 octets, continuing with CRLF and one space, without
+// splitting a UTF-8 sequence.
+function foldIcs(line) {
+  const bytes = Buffer.from(line, "utf8");
+  if (bytes.length <= 75) return line;
+  const pieces = [];
+  let start = 0;
+  let limit = 75;
+  while (start < bytes.length) {
+    let end = Math.min(start + limit, bytes.length);
+    while (end < bytes.length && (bytes[end] & 0xc0) === 0x80) end--;
+    pieces.push(bytes.subarray(start, end).toString("utf8"));
+    start = end;
+    limit = 74;
+  }
+  return pieces.join("\r\n ");
+}
+
+// A last revision of the calendar resource that hands scheduling back to the
+// client. RFC 6638 7.1: with SCHEDULE-AGENT=CLIENT on the ORGANIZER a server
+// performs no scheduling for the resource, so the DELETE that follows removes
+// it quietly. Without this, section 3.2.1.3 makes that DELETE mail every
+// attendee a cancellation for an appointment a month in the past.
+function buildSuppressionRevision(meeting, uid) {
+  const sequence = Number.isInteger(meeting.sequence) ? meeting.sequence : 0;
+  const lines = [
+    "BEGIN:VCALENDAR",
+    `PRODID:-//${SERVER_NAME}//Element Call//EN`,
+    "VERSION:2.0",
+    "CALSCALE:GREGORIAN",
+    "BEGIN:VEVENT",
+    `UID:${uid}`,
+    `SEQUENCE:${sequence + 1}`,
+    `DTSTAMP:${icsUtc(Date.now())}`,
+    `DTSTART:${icsUtc(Number(meeting.scheduled_start))}`,
+    `DTEND:${icsUtc(Number(meeting.scheduled_end))}`,
+    `SUMMARY:${icsText(MEETING_SUMMARY_TEMPLATE.replace(/\{\{\w+\}\}/g, "").trim())}`,
+    `ORGANIZER;SCHEDULE-AGENT=CLIENT:mailto:${CALDAV_ORGANIZER_EMAIL}`,
+  ];
+  for (const email of [meeting.organizer_email, meeting.prospect_email]) {
+    if (email) lines.push(`ATTENDEE:mailto:${String(email).replace(/[\r\n]/g, "")}`);
+  }
+  lines.push("STATUS:CONFIRMED", "END:VEVENT", "END:VCALENDAR");
+  return lines.map(foldIcs).join("\r\n") + "\r\n";
+}
+
+// Replace the resource with the suppression revision. No organizer address
+// means the stored resource was never a scheduling object, so a delete cannot
+// generate mail and there is nothing to suppress.
+async function suppressCaldavScheduling(meeting, uid) {
+  if (!CALDAV_ORGANIZER_EMAIL) return;
+  const resp = await fetch(caldavUrl(uid), {
+    method: "PUT",
+    headers: {
+      Authorization: caldavAuthHeader(),
+      "Content-Type": "text/calendar; charset=utf-8",
+    },
+    body: buildSuppressionRevision(meeting, uid),
+    signal: AbortSignal.timeout(CALDAV_TIMEOUT_MS),
+  });
+  if (resp.status < 200 || resp.status >= 300) {
+    throw caldavError(resp.status);
+  }
+}
+
 // DELETE the CalDAV event for a booking. 404 is treated as already-gone.
 async function deleteCaldavEvent(uid) {
-  if (!CALDAV_URL_BASE || !CALDAV_USER || !CALDAV_PASSWORD) {
-    console.warn("CalDAV not configured; skipping calendar delete");
-    return;
-  }
-  const url = `${CALDAV_URL_BASE}/${encodeURIComponent(uid)}.ics`;
-  const resp = await fetch(url, {
+  const resp = await fetch(caldavUrl(uid), {
     method: "DELETE",
     headers: { Authorization: caldavAuthHeader() },
     signal: AbortSignal.timeout(CALDAV_TIMEOUT_MS),
@@ -122,7 +229,7 @@ async function deleteCaldavEvent(uid) {
   if (resp.status === 404 || (resp.status >= 200 && resp.status < 300)) {
     return;
   }
-  throw new Error(`CalDAV delete failed (status ${resp.status})`);
+  throw caldavError(resp.status);
 }
 
 // --- Task 1: reminder + reschedule emails ---
@@ -351,14 +458,21 @@ export async function processRetention() {
       continue;
     }
 
-    // Delete the calendar event (404 = already gone).
-    if (meeting.booking_id) {
+    // Clear the calendar resource. Both steps read `meeting`, the copy taken
+    // before redaction, so the order above is untouched: the state is redacted
+    // first and stays redacted whatever the calendar does.
+    if (meeting.booking_id && caldavConfigured()) {
+      // The UID composition is fixed rather than configurable, and is derived
+      // independently here because the two services share no code.
       const uid = `booking-${meeting.booking_id}@${SERVER_NAME}`;
       try {
+        await suppressCaldavScheduling(meeting, uid);
         await deleteCaldavEvent(uid);
       } catch (err) {
+        // Best-effort, like every calendar write: the redaction is what
+        // matters and has already happened. Status only, never the message.
         console.warn(
-          `Retention: CalDAV delete failed for booking ${bookingId}: ${err.message}`,
+          `Retention: calendar cleanup failed for booking ${bookingId} (status ${err.status ?? 0})`,
         );
       }
     }

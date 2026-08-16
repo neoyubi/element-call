@@ -178,7 +178,6 @@ const PENDING_MESSAGE_LOGS = {
     "Calendar write failed for booking",
     "Calendar cancel failed for booking",
   ],
-  "meeting-worker/worker.mjs": ["Retention: CalDAV delete failed for booking"],
 };
 
 function sourceFiles(dir) {
