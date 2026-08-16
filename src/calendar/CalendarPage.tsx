@@ -31,6 +31,7 @@ import {
   useScheduledMeetings,
   type ScheduledMeeting,
 } from "../home/useScheduledMeetings";
+import { useCanSchedule } from "../home/useCanSchedule";
 import { useSetting, calendarView } from "../settings/settings";
 import { AgendaView } from "./AgendaView";
 import { EventDetails } from "./EventDetails";
@@ -85,6 +86,7 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
   const { header } = useUrlParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { meetings, loading } = useScheduledMeetings(client);
+  const canSchedule = useCanSchedule(client);
   const now = useBehavior(now$);
   const narrow = useMediaQuery(NARROW_VIEWPORT);
   const [preferredView, setPreferredView] = useSetting(calendarView);
@@ -252,7 +254,14 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
         open={selected !== null}
         onDismiss={() => setSelected(null)}
       >
-        {selected !== null && <EventDetails meeting={selected} />}
+        {selected !== null && (
+          <EventDetails
+            meeting={selected}
+            client={client}
+            canModify={canSchedule}
+            onDone={() => setSelected(null)}
+          />
+        )}
       </Modal>
     </div>
   );

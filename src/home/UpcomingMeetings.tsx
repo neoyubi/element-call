@@ -19,6 +19,8 @@ import { Link } from "react-router-dom";
 import { logger } from "matrix-js-sdk/lib/logger";
 
 import {
+  cancelMeeting,
+  rescheduleMeeting,
   useScheduledMeetings,
   type ScheduledMeeting,
 } from "./useScheduledMeetings";
@@ -95,48 +97,8 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
       e.stopPropagation();
       e.preventDefault();
       setDeleting(true);
-      const room = meeting.room;
-      const adminApiUrl = Config.get().admin_api_url;
-
-      // Preferred path: cancel through the admin API, which emits the
-      // calendar cancellation and purges the room server-side.
-      async function deleteViaAdminApi(url: string): Promise<void> {
-        const token = client.getAccessToken();
-        if (!token) throw new Error("Missing access token");
-        const response = await fetch(
-          `${url}/api/admin/rooms/${encodeURIComponent(room.roomId)}`,
-          {
-            method: "DELETE",
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-        if (!response.ok)
-          throw new Error(`Cancellation failed (${response.status})`);
-        logger.info(`Cancelled meeting room ${room.roomId}`);
-      }
-
-      // Fallback when no admin API is configured: kick everyone and leave.
-      async function deleteViaMatrix(): Promise<void> {
-        const myUserId = client.getUserId()!;
-        const members = room.getJoinedMembers();
-        const kickAll = members
-          .filter((m) => m.userId !== myUserId)
-          .map(async (m) => {
-            try {
-              await client.kick(room.roomId, m.userId);
-            } catch (err) {
-              logger.error(`Failed to kick ${m.userId}`, err);
-            }
-          });
-        await Promise.all(kickAll);
-        await client.leave(room.roomId);
-        logger.info(`Deleted meeting room ${room.roomId}`);
-      }
-
-      void (
-        adminApiUrl ? deleteViaAdminApi(adminApiUrl) : deleteViaMatrix()
-      ).catch((err: unknown) => {
-        logger.error("Failed to delete meeting room", err);
+      cancelMeeting(client, meeting.room).catch((err: unknown) => {
+        logger.error("Failed to cancel meeting", err);
         setDeleting(false);
         setConfirming(false);
       });
@@ -187,38 +149,14 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
       }
       setEditError(undefined);
 
-      const body = {
+      setSaving(true);
+      rescheduleMeeting(client, meeting.room.roomId, {
         scheduled_start: start,
         scheduled_end: start + duration * 60000,
         timezone: meeting.timezone,
-      };
-      const roomId = meeting.room.roomId;
-
-      async function save(): Promise<void> {
-        setSaving(true);
-        const adminApiUrl = Config.get().admin_api_url;
-        if (!adminApiUrl) throw new Error("Scheduling is not configured");
-        const token = client.getAccessToken();
-        if (!token) throw new Error("Missing access token");
-
-        const response = await fetch(
-          `${adminApiUrl}/api/admin/rooms/${encodeURIComponent(roomId)}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(body),
-          },
-        );
-        if (response.status !== 200)
-          throw new Error(`Update failed (${response.status})`);
+      })
         // The tile refreshes itself when the updated state event syncs down.
-        setEditing(false);
-      }
-
-      save()
+        .then(() => setEditing(false))
         .catch((err: unknown) => {
           logger.error("Failed to reschedule meeting", err);
           setEditError(t("meetings.update_failed"));

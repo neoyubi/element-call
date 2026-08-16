@@ -27,3 +27,52 @@
 .actions > * {
   min-block-size: var(--cpd-space-11x);
 }
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpd-space-4x);
+}
+
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cpd-space-3x);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpd-space-1x);
+  flex: 1;
+  min-inline-size: var(--cpd-space-32x);
+}
+
+.input {
+  min-block-size: var(--cpd-space-11x);
+  padding: var(--cpd-space-2x) var(--cpd-space-3x);
+  border: var(--cpd-border-width-1) solid
+    var(--cpd-color-border-interactive-primary);
+  border-radius: var(--cpd-space-1x);
+  background-color: var(--cpd-color-bg-canvas-default);
+  color: var(--cpd-color-text-primary);
+  /* Anything below 16px makes mobile Safari zoom the page on focus. */
+  font-size: max(16px, var(--cpd-font-size-body-md));
+}
+
+.input:focus-visible {
+  border-color: var(--cpd-color-border-focused);
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-border-width-1);
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpd-space-3x);
+}
+
+.error {
+  color: var(--cpd-color-text-critical-primary);
+  font-weight: var(--cpd-font-weight-semibold);
+}
