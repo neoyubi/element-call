@@ -260,6 +260,24 @@ async function synapseRequest(path, options = {}) {
 
 // --- Calendar (best-effort) ---
 //
+// A calendar failure never fails the room operation, so this log line is the
+// only signal a deployment gets. It separates the two cases an operator acts
+// on differently: a 4xx is permanent — a wrong collection URL, a wrong
+// credential, a server refusing the resource — and no retry will fix it, while
+// a 5xx or a timeout will likely succeed later. The error message is
+// deliberately not included: on a transport failure it can quote the
+// collection URL, which contains the mailbox address.
+function logCalendarFailure(operation, bookingId, err) {
+  const status = err.status ?? 0;
+  const kind =
+    status >= 400 && status < 500
+      ? "permanent, check the calendar configuration"
+      : "transient";
+  console.warn(
+    `Calendar ${operation} failed for booking ${bookingId} (status ${status}, ${kind})`,
+  );
+}
+//
 // Write or remove the calendar event for a meeting. Failures are logged
 // (booking_id only) and swallowed: the calendar is best-effort and never fails
 // the room operation. No-ops when CalDAV is not configured.
@@ -304,9 +322,7 @@ async function writeCalendarEvent({
     });
     await putEvent({ uid, ics });
   } catch (err) {
-    console.warn(
-      `Calendar write failed for booking ${bookingId}: ${err.message}`,
-    );
+    logCalendarFailure("write", bookingId, err);
   }
 }
 
@@ -322,9 +338,7 @@ async function cancelCalendarEvent(bookingId) {
   try {
     await deleteEvent({ uid: bookingUid(bookingId) });
   } catch (err) {
-    console.warn(
-      `Calendar cancel failed for booking ${bookingId}: ${err.message}`,
-    );
+    logCalendarFailure("cancel", bookingId, err);
   }
 }
 

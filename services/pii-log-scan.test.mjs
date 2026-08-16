@@ -20,9 +20,10 @@ const PERSONAL = /_email\b|_name\b|meet_link|password|authorization/i;
 // and the service prints it once at startup so an operator can confirm it.
 const ALLOWED = new Set(["SERVER_NAME"]);
 
-// A caught error's message is third-party controlled on these paths: an MTA
-// rejection quotes the recipient it refused, and a calendar failure can quote
-// the collection URL, which contains the mailbox address.
+// An error message is third-party controlled on these paths: an MTA rejection
+// quotes the recipient it refused, and a calendar transport failure can quote
+// the collection URL, which contains the mailbox address. Both report a code
+// or a status instead, wherever the log line itself lives.
 const SENSITIVE_FAILURE = /\b(calendar|caldav|smtp|mail)\b/i;
 
 // Blank comments and literal text while keeping template substitutions, so the
@@ -117,26 +118,6 @@ function consoleCalls(source) {
   return calls;
 }
 
-// Character ranges covered by a catch block, so a failure log can be told apart
-// from a success log.
-function catchRanges(source) {
-  const code = codeOnly(source);
-  const ranges = [];
-  const pattern = /\bcatch\s*(\([^)]*\))?\s*\{/g;
-  let match;
-  while ((match = pattern.exec(code)) !== null) {
-    let depth = 1;
-    let end = match.index + match[0].length;
-    while (end < code.length && depth > 0) {
-      if (code[end] === "{") depth++;
-      else if (code[end] === "}") depth--;
-      end++;
-    }
-    ranges.push([match.index, end]);
-  }
-  return ranges;
-}
-
 function personalDataViolations(source) {
   const found = [];
   for (const call of consoleCalls(source)) {
@@ -149,36 +130,14 @@ function personalDataViolations(source) {
   return found;
 }
 
-// The leading fixed words of a log line, which identify it across edits that
-// move it around the file.
-function logLabel(text) {
-  return text
-    .replace(/^[\s`]+/, "")
-    .split("${")[0]
-    .trim();
-}
-
-function caughtMessageViolations(source) {
-  const ranges = catchRanges(source);
+function errorMessageViolations(source) {
   return consoleCalls(source)
     .filter(
       (call) =>
-        ranges.some(([from, to]) => call.start > from && call.start < to) &&
-        SENSITIVE_FAILURE.test(call.text) &&
-        /\.message\b/.test(call.args),
+        SENSITIVE_FAILURE.test(call.text) && /\.message\b/.test(call.args),
     )
-    .map((call) => logLabel(call.text));
+    .map((call) => `line ${call.line}: logs an error message`);
 }
-
-// Call sites that still interpolate a caught error message on a calendar path.
-// Pinned as an equality rather than tolerated, so removing one without emptying
-// this list fails just as loudly as adding a new one.
-const PENDING_MESSAGE_LOGS = {
-  "admin-api/server.mjs": [
-    "Calendar write failed for booking",
-    "Calendar cancel failed for booking",
-  ],
-};
 
 function sourceFiles(dir) {
   const found = [];
@@ -208,10 +167,7 @@ describe("service logs", () => {
     });
 
     test(`${relative} reports mail and calendar failures by code, not message`, () => {
-      assert.deepEqual(
-        caughtMessageViolations(readFileSync(file, "utf8")),
-        PENDING_MESSAGE_LOGS[relative] ?? [],
-      );
+      assert.deepEqual(errorMessageViolations(readFileSync(file, "utf8")), []);
     });
   }
 });
@@ -236,12 +192,12 @@ describe("the scan itself", () => {
     );
   });
 
-  test("catches a caught error message on the calendar path", () => {
+  test("catches an error message on the calendar path", () => {
     assert.deepEqual(
-      caughtMessageViolations(
+      errorMessageViolations(
         "try { a(); } catch (err) { console.warn(`Calendar write failed: ${err.message}`); }",
       ),
-      ["Calendar write failed:"],
+      ["line 1: logs an error message"],
     );
   });
 
@@ -256,7 +212,7 @@ describe("the scan itself", () => {
 
   test("allows an error code on the mail path", () => {
     assert.deepEqual(
-      caughtMessageViolations(
+      errorMessageViolations(
         "try { a(); } catch (err) { console.warn(`SMTP send failed: ${err.code}`); }",
       ),
       [],
@@ -265,7 +221,7 @@ describe("the scan itself", () => {
 
   test("allows an error message on a path that is neither mail nor calendar", () => {
     assert.deepEqual(
-      caughtMessageViolations(
+      errorMessageViolations(
         "try { a(); } catch (err) { console.warn(`Emails: read failed: ${err.message}`); }",
       ),
       [],

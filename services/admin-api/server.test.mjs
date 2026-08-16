@@ -420,6 +420,79 @@ describe("organizer identity", () => {
   });
 });
 
+describe("calendar failures", () => {
+  const realConsole = { warn: console.warn };
+  let logged;
+
+  beforeEach(() => {
+    logged = [];
+    console.warn = (...args) => logged.push(args.join(" "));
+  });
+
+  afterEach(() => {
+    Object.assign(console, realConsole);
+  });
+
+  // A permanent rejection will never succeed on retry, so the operator has to
+  // be able to tell it apart from a server that was briefly unavailable.
+  test("a rejected write is reported as permanent and names the cause", async () => {
+    scriptState(storedMeeting());
+    caldavStatus = 415;
+
+    await updateMeetingRoom(ROOM_ID, { scheduled_start: START + 3600000 });
+
+    const line = logged.find((entry) => entry.startsWith("Calendar"));
+    assert.match(line, /status 415/);
+    assert.match(line, /permanent/);
+  });
+
+  test("a server error is reported as transient", async () => {
+    scriptState(storedMeeting());
+    caldavStatus = 503;
+
+    await updateMeetingRoom(ROOM_ID, { scheduled_start: START + 3600000 });
+
+    assert.match(
+      logged.find((entry) => entry.startsWith("Calendar")),
+      /transient/,
+    );
+  });
+
+  test("a failed removal never stops the room being purged", async () => {
+    scriptState(storedMeeting());
+    caldavStatus = 500;
+
+    const result = await deleteMeetingRoom(ROOM_ID);
+
+    assert.equal(result.status, 200);
+    assert.match(
+      logged.find((entry) => entry.startsWith("Calendar")),
+      /^Calendar cancel failed/,
+    );
+  });
+
+  test("no failure line quotes an address, a name or the join link", async () => {
+    scriptState(storedMeeting());
+    caldavStatus = 500;
+
+    await updateMeetingRoom(ROOM_ID, { scheduled_start: START + 3600000 });
+
+    for (const line of logged) {
+      for (const value of [
+        "Alex Organizer",
+        "Sam Prospect",
+        "organizer@example.com",
+        "guest@example.com",
+        "calendar@example.com",
+        "s3cret-app-password",
+        MEET_LINK,
+      ]) {
+        assert.ok(!line.includes(value), line);
+      }
+    }
+  });
+});
+
 describe("what the calendar shows", () => {
   // Property lines are folded at 75 octets, so they are joined back up before
   // the value is read.
