@@ -117,8 +117,24 @@ function appendDigit(
   return value >= segment.min ? `${digits}0${digit}` : digits;
 }
 
-// Feed a whole string of characters through `appendDigit`, ignoring anything
-// that is not a digit. Used for typing, for pasting, and for seeding.
+// Separators people reach for, whatever the configured one is — they type what
+// their previous system used.
+const SEPARATOR_CHARS = new Set([".", "/", "-", ",", ":", " "]);
+
+// Complete a two-digit segment holding a single digit, so typing "1." means the
+// 1st. A leading 0 is left alone because 00 is not a real day or month.
+function padSegment(segments: Segment[], digits: string): string {
+  const at = locate(segments, digits.length);
+  if (at === undefined || at.segment.width !== 2 || at.offset !== 1)
+    return digits;
+  const typed = digits.slice(-1);
+  if (Number(typed) < at.segment.min) return digits;
+  return `${digits.slice(0, -1)}0${typed}`;
+}
+
+// Feed a whole string through the segments. Digits extend the stream, a
+// separator completes the segment in progress, and everything else is ignored.
+// Used for typing, for pasting, and for seeding.
 function appendAll(
   segments: Segment[],
   digits: string,
@@ -127,6 +143,7 @@ function appendAll(
   let next = digits;
   for (const char of input) {
     if (char >= "0" && char <= "9") next = appendDigit(segments, next, char);
+    else if (SEPARATOR_CHARS.has(char)) next = padSegment(segments, next);
   }
   return next;
 }

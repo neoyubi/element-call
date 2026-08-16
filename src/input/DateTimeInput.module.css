@@ -1,0 +1,73 @@
+.field {
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  transition: border-color 0.25s;
+  border: 1px solid var(--cpd-color-border-interactive-primary);
+  background-color: var(--cpd-color-bg-canvas-default);
+}
+
+.field input {
+  inline-size: 100%;
+  min-inline-size: 0;
+  font-weight: 400;
+  /* Anything below 16px makes mobile Safari zoom the page on focus, and never
+  zoom back out. */
+  font-size: max(16px, var(--font-size-body));
+  font-variant-numeric: tabular-nums;
+  border: none;
+  border-radius: 4px;
+  padding: 12px 9px 10px 9px;
+  color: var(--cpd-color-text-primary);
+  background-color: transparent;
+}
+
+.field input:focus {
+  outline: 0;
+}
+
+/* The placeholder teaches the entry format, so unlike the other text fields it
+stays visible while the box is empty rather than only on focus. */
+.field input::placeholder {
+  color: var(--cpd-color-text-secondary);
+  opacity: 1;
+}
+
+.field:focus-within {
+  border-color: var(--cpd-color-border-focused);
+}
+
+/* A border colour change alone is not a sufficient focus indicator */
+.field:has(:focus-visible) {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-border-width-1);
+}
+
+.invalid {
+  border-color: var(--cpd-color-border-critical-primary);
+}
+
+.disabled {
+  background-color: var(--cpd-color-bg-subtle-secondary);
+}
+
+.disabled input {
+  color: var(--cpd-color-text-disabled);
+}
+
+/* Reachable by assistive technology but not drawn. `hidden` would take these
+out of the accessibility tree, which would silence the live region. */
+.offscreen {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.error {
+  margin-block: var(--cpd-space-2x) 0;
+  color: var(--cpd-color-text-critical-primary);
+  font: var(--cpd-font-body-sm-medium);
+}
