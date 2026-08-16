@@ -1,13 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { type TFunction } from "i18next";
 
 import { type ScheduledMeeting } from "../home/useScheduledMeetings";
 import {
+  MINUTES_PER_DAY,
   addDays,
   daysBetween,
+  dragRange,
+  formatLength,
   fromDateParam,
   isSameDay,
   monthGridDays,
   resolveFirstDayOfWeek,
+  slotSelection,
+  snappedMinute,
   startOfDay,
   startOfWeek,
   stepDate,
@@ -356,5 +362,124 @@ describe("day helpers", () => {
 
   it("truncates to local midnight", () => {
     expect(startOfDay(new Date(2026, 7, 20, 13, 45)).getHours()).toBe(0);
+  });
+});
+
+describe("slot geometry", () => {
+  it("puts a press in the slot it landed in, and an edge on the nearest", () => {
+    // Half way down the 10:00 row of a 24 hour column.
+    expect(snappedMinute(10.5 / 24, 15, "floor")).toBe(630);
+    // A shade past 11:37, which the pointer is nearer to 11:45 than 11:30.
+    expect(snappedMinute(11.63 / 24, 15, "nearest")).toBe(705);
+    expect(snappedMinute(11.51 / 24, 15, "floor")).toBe(690);
+  });
+
+  it("follows the granularity it is given rather than a fixed one", () => {
+    expect(snappedMinute(10.9 / 24, 30, "floor")).toBe(630);
+    expect(snappedMinute(10.9 / 24, 60, "floor")).toBe(600);
+    expect(snappedMinute(10.9 / 24, 5, "floor")).toBe(650);
+  });
+
+  it("never reads a position off the ends of the day", () => {
+    expect(snappedMinute(-3, 15, "floor")).toBe(0);
+    expect(snappedMinute(4, 15, "nearest")).toBe(MINUTES_PER_DAY);
+  });
+
+  it("grows a dragged block downwards from the slot pressed", () => {
+    expect(dragRange(630, 690, 15)).toEqual({
+      startMinute: 630,
+      endMinute: 690,
+    });
+  });
+
+  it("grows a dragged block upwards, keeping the slot pressed inside it", () => {
+    expect(dragRange(630, 540, 15)).toEqual({
+      startMinute: 540,
+      endMinute: 645,
+    });
+  });
+
+  it("is never shorter than one slot, however still the pointer is", () => {
+    expect(dragRange(630, 630, 15)).toEqual({
+      startMinute: 630,
+      endMinute: 645,
+    });
+    expect(dragRange(630, 638, 15)).toEqual({
+      startMinute: 630,
+      endMinute: 645,
+    });
+  });
+
+  it("clamps a block to the day rather than spilling into the next", () => {
+    expect(dragRange(1425, MINUTES_PER_DAY, 15)).toEqual({
+      startMinute: 1425,
+      endMinute: MINUTES_PER_DAY,
+    });
+    // A press on the very last pixel of the column still has a slot to fill.
+    expect(dragRange(MINUTES_PER_DAY, MINUTES_PER_DAY, 15)).toEqual({
+      startMinute: 1425,
+      endMinute: MINUTES_PER_DAY,
+    });
+    expect(dragRange(60, -120, 15)).toEqual({ startMinute: 0, endMinute: 75 });
+  });
+
+  it("reads a start and a length off an ordinary day", () => {
+    expect(slotSelection(new Date(2026, 7, 17), 630, 690)).toEqual({
+      start: new Date(2026, 7, 17, 10, 30),
+      durationMinutes: 60,
+    });
+  });
+
+  it("measures a block over the hour the clocks skip as the time it lasts", () => {
+    // 29 March 2026 has no 02:00-03:00 locally. Three rows of the grid from
+    // 01:00 to 04:00 are two hours of meeting, and it has to end at 04:00.
+    expect(slotSelection(new Date(2026, 2, 29), 60, 240)).toEqual({
+      start: new Date(2026, 2, 29, 1, 0),
+      durationMinutes: 120,
+    });
+  });
+
+  it("measures a block over the hour the clocks repeat as the time it lasts", () => {
+    // 25 October 2026 runs 02:00-03:00 twice, so the same three rows are four
+    // hours of meeting.
+    expect(slotSelection(new Date(2026, 9, 25), 60, 240)).toEqual({
+      start: new Date(2026, 9, 25, 1, 0),
+      durationMinutes: 240,
+    });
+  });
+
+  it("ends a block drawn to the foot of the column at midnight", () => {
+    const { start, durationMinutes } = slotSelection(
+      new Date(2026, 7, 17),
+      1380,
+      MINUTES_PER_DAY,
+    );
+    expect(start).toEqual(new Date(2026, 7, 17, 23, 0));
+    expect(durationMinutes).toBe(60);
+  });
+});
+
+describe("formatLength", () => {
+  // The keys and their counts are the contract; the English they render is
+  // asserted where the label is drawn.
+  const t = ((key: string, options: Record<string, number>) =>
+    `${key} ${JSON.stringify(options)}`) as unknown as TFunction<"app">;
+
+  it("reports a length under an hour in minutes", () => {
+    expect(formatLength(t, 45)).toBe(
+      'schedule_meeting.minutes_short {"count":45}',
+    );
+  });
+
+  it("reports a whole number of hours as hours", () => {
+    expect(formatLength(t, 120)).toBe(
+      'schedule_meeting.hours_short {"count":2}',
+    );
+  });
+
+  it("reports hours and minutes through one key, not two joined", () => {
+    expect(formatLength(t, 105)).toBe(
+      'schedule_meeting.hours_minutes_short {"count":1,"minutes":45}',
+    );
   });
 });

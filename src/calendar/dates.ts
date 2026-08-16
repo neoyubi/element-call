@@ -244,6 +244,105 @@ export function fromDateParam(value: string | null): Date | undefined {
 
 export const MINUTES_PER_DAY = 1440;
 
+/** An instant on `day`, that many minutes after its local midnight. */
+export function atMinute(day: Date, minute: number): Date {
+  return new Date(
+    day.getFullYear(),
+    day.getMonth(),
+    day.getDate(),
+    Math.floor(minute / 60),
+    minute % 60,
+  );
+}
+
+/**
+ * Minutes from local midnight at a fractional distance down a day column,
+ * snapped to a multiple of `snap`.
+ *
+ * The two roundings are not interchangeable. `floor` places a press in the
+ * slot cell it landed in, which is how clicking an hour already picks its
+ * start time. `nearest` is for the edge a pointer is dragging, which would
+ * otherwise trail up to a whole slot behind the cursor and feel slack.
+ */
+export function snappedMinute(
+  fraction: number,
+  snap: number,
+  rounding: "floor" | "nearest",
+): number {
+  const minutes = Math.min(Math.max(fraction, 0), 1) * MINUTES_PER_DAY;
+  const slots = minutes / snap;
+  const round = rounding === "floor" ? Math.floor : Math.round;
+  return round(slots) * snap;
+}
+
+/**
+ * The block a drag covers, from the slot the pointer went down in to the slot
+ * it has reached. Dragging upward grows the block above the press.
+ *
+ * The pressed slot is always inside the result, so a drag is never shorter
+ * than one slot and never flips to the far side of where it began. Both edges
+ * are clamped to the day: the grid has no multi-day lane to draw the result
+ * in, so it cannot be dragged into one.
+ */
+export function dragRange(
+  anchorMinute: number,
+  edgeMinute: number,
+  slotMinutes: number,
+): { startMinute: number; endMinute: number } {
+  const anchorStart = Math.min(
+    Math.max(anchorMinute, 0),
+    MINUTES_PER_DAY - slotMinutes,
+  );
+  const anchorEnd = anchorStart + slotMinutes;
+  return edgeMinute >= anchorEnd
+    ? {
+        startMinute: anchorStart,
+        endMinute: Math.min(edgeMinute, MINUTES_PER_DAY),
+      }
+    : {
+        startMinute: Math.max(Math.min(edgeMinute, anchorStart), 0),
+        endMinute: anchorEnd,
+      };
+}
+
+/**
+ * A dragged block's start instant and its length in real minutes.
+ *
+ * The edges are local wall-clock positions in a grid of 1440 fixed minutes,
+ * but the length handed to the scheduling form is elapsed time, because that
+ * is what the form adds to the start to get an end. The two differ on the two
+ * days a year that are not 24 hours long: a block drawn across the hour the
+ * clocks skip covers three rows but lasts two hours, and it has to end where
+ * the pointer was released rather than an hour past it.
+ */
+export function slotSelection(
+  day: Date,
+  startMinute: number,
+  endMinute: number,
+): { start: Date; durationMinutes: number } {
+  const start = atMinute(day, startMinute);
+  const end = atMinute(day, endMinute);
+  return {
+    start,
+    durationMinutes: Math.round((end.getTime() - start.getTime()) / 60000),
+  };
+}
+
+/** A length of time, as "45 min", "2 h" or "1 h 15 min". */
+export function formatLength(t: TFunction<"app">, minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0)
+    return t("schedule_meeting.minutes_short", { count: minutes });
+  if (rest === 0) return t("schedule_meeting.hours_short", { count: hours });
+  // One key rather than two joined: an hour and a remainder are not written
+  // in that order, or with that spacing, in every language.
+  return t("schedule_meeting.hours_minutes_short", {
+    count: hours,
+    minutes: rest,
+  });
+}
+
 /** A meeting placed in a day column, ready for a grid or a list. */
 export interface PositionedEvent {
   meeting: ScheduledMeeting;
