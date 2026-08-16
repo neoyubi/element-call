@@ -214,7 +214,7 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
           ) : (
             <>
               <IconButton
-                size="24px"
+                size="var(--cpd-space-11x)"
                 onClick={onEditClick}
                 aria-label={t("meetings.edit_meeting")}
                 className={styles.editButton}
@@ -222,7 +222,7 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
                 <EditIcon width={16} height={16} />
               </IconButton>
               <IconButton
-                size="24px"
+                size="var(--cpd-space-11x)"
                 onClick={onDeleteClick}
                 aria-label={t("meetings.delete_meeting")}
                 className={styles.deleteButton}
@@ -329,7 +329,7 @@ export const UpcomingMeetings: FC<UpcomingMeetingsProps> = ({ client }) => {
             {t("meetings.upcoming")}
           </Text>
           <IconButton
-            size="24px"
+            size="var(--cpd-space-11x)"
             onClick={toggleCalendar}
             aria-label={
               showCalendar
@@ -403,13 +403,13 @@ export const UpcomingMeetings: FC<UpcomingMeetingsProps> = ({ client }) => {
             </div>
           </>
         ) : (
-          <Text
-            size="sm"
+          <button
+            type="button"
             className={styles.collapsedText}
             onClick={toggleCalendar}
           >
             {t("meetings.count", { count: meetings.length })}
-          </Text>
+          </button>
         )}
       </div>
     </div>

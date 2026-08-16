@@ -1,7 +1,7 @@
 .container {
   display: flex;
   flex-direction: column;
-  width: 329px;
+  inline-size: min(329px, 100%);
   background-color: var(--cpd-color-bg-subtle-secondary);
   border-radius: 8px;
   overflow: hidden;
@@ -72,29 +72,29 @@
   color: inherit;
 }
 
-.meetingLink:hover {
-  opacity: 0.8;
+@media (hover: hover) {
+  .meetingLink:hover {
+    background-color: var(--cpd-color-bg-subtle-primary);
+  }
 }
 
+/* Always present rather than revealed on hover: a control that only exists
+   under a pointer is invisible on a touchscreen and unreachable by keyboard,
+   while still being tappable. */
 .deleteButton,
 .editButton {
   flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.15s;
   color: var(--cpd-color-text-secondary);
 }
 
-.deleteButton:hover {
-  color: var(--cpd-color-text-critical-primary);
-}
+@media (hover: hover) {
+  .deleteButton:hover {
+    color: var(--cpd-color-text-critical-primary);
+  }
 
-.editButton:hover {
-  color: var(--cpd-color-text-primary);
-}
-
-.meetingTile:hover .deleteButton,
-.meetingTile:hover .editButton {
-  opacity: 1;
+  .editButton:hover {
+    color: var(--cpd-color-text-primary);
+  }
 }
 
 .confirmActions {
@@ -106,12 +106,12 @@
 .confirmYes,
 .confirmNo {
   border: none;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: var(--cpd-space-1x);
+  min-block-size: var(--cpd-space-11x);
+  padding-inline: var(--cpd-space-3x);
+  font-size: var(--cpd-font-size-body-sm);
+  font-weight: var(--cpd-font-weight-semibold);
   cursor: pointer;
-  line-height: 1;
 }
 
 .confirmYes {
@@ -119,8 +119,10 @@
   color: var(--cpd-color-text-on-solid-primary);
 }
 
-.confirmYes:hover {
-  background: var(--cpd-color-bg-critical-hovered);
+@media (hover: hover) {
+  .confirmYes:hover {
+    background: var(--cpd-color-bg-critical-hovered);
+  }
 }
 
 .confirmNo {
@@ -128,8 +130,10 @@
   color: var(--cpd-color-text-secondary);
 }
 
-.confirmNo:hover {
-  background: var(--cpd-color-bg-subtle-primary);
+@media (hover: hover) {
+  .confirmNo:hover {
+    background: var(--cpd-color-bg-subtle-primary);
+  }
 }
 
 .editRow {
@@ -147,20 +151,24 @@
 .editInput,
 .editSelect {
   flex: 1;
-  min-width: 0;
-  font-size: var(--cpd-font-size-body-sm);
+  min-inline-size: 0;
+  min-block-size: var(--cpd-space-11x);
+  /* Anything below 16px makes mobile Safari zoom the page on focus. */
+  font-size: max(16px, var(--cpd-font-size-body-sm));
   color: var(--cpd-color-text-primary);
   background-color: var(--cpd-color-bg-canvas-default);
-  border: 1px solid var(--cpd-color-border-interactive-primary);
-  border-radius: 4px;
-  padding: 6px 8px;
+  border: var(--cpd-border-width-1) solid
+    var(--cpd-color-border-interactive-primary);
+  border-radius: var(--cpd-space-1x);
+  padding: var(--cpd-space-1x) var(--cpd-space-2x);
   box-sizing: border-box;
 }
 
-.editInput:focus,
-.editSelect:focus {
-  outline: none;
+.editInput:focus-visible,
+.editSelect:focus-visible {
   border-color: var(--cpd-color-border-focused);
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-border-width-1);
 }
 
 .editError {
@@ -177,18 +185,20 @@
 
 .editSave {
   border: none;
-  border-radius: 4px;
-  padding: 4px 8px;
-  font-size: 12px;
-  font-weight: 600;
+  border-radius: var(--cpd-space-1x);
+  min-block-size: var(--cpd-space-11x);
+  padding-inline: var(--cpd-space-3x);
+  font-size: var(--cpd-font-size-body-sm);
+  font-weight: var(--cpd-font-weight-semibold);
   cursor: pointer;
-  line-height: 1;
   background: var(--cpd-color-bg-action-primary-rest);
   color: var(--cpd-color-text-on-solid-primary);
 }
 
-.editSave:hover {
-  background: var(--cpd-color-bg-action-primary-hovered);
+@media (hover: hover) {
+  .editSave:hover {
+    background: var(--cpd-color-bg-action-primary-hovered);
+  }
 }
 
 .editSave:disabled {
@@ -220,25 +230,40 @@
 }
 
 .collapsedText {
-  padding: 8px 12px 12px;
+  padding: var(--cpd-space-2x) var(--cpd-space-3x) var(--cpd-space-3x);
+  min-block-size: var(--cpd-space-11x);
+  border: none;
+  background: none;
+  text-align: start;
+  font: inherit;
+  font-size: var(--cpd-font-size-body-sm);
   color: var(--cpd-color-text-secondary);
   cursor: pointer;
 }
 
-.collapsedText:hover {
-  color: var(--cpd-color-text-primary);
+.collapsedText:focus-visible {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: calc(-1 * var(--cpd-border-width-2));
+}
+
+@media (hover: hover) {
+  .collapsedText:hover {
+    color: var(--cpd-color-text-primary);
+  }
 }
 
 .wrapper {
   display: flex;
   justify-content: center;
-  width: 100%;
-  margin-bottom: 24px;
+  inline-size: 100%;
+  padding-inline: var(--cpd-space-4x);
+  margin-block-end: var(--cpd-space-6x);
+  box-sizing: border-box;
 }
 
 @media (min-width: 706px) {
   .wrapper {
-    width: calc(100% - 48px);
-    max-width: calc((329px + 24px) * 3);
+    inline-size: calc(100% - 48px);
+    max-inline-size: calc((329px + 24px) * 3);
   }
 }

@@ -22,11 +22,11 @@ Please see LICENSE in the repository root for full details.
 
 .logo {
   display: flex;
-  margin-bottom: 54px;
+  margin-block-end: var(--cpd-space-13x);
 }
 
 .headline {
-  margin-bottom: 40px;
+  margin-block-end: var(--cpd-space-10x);
 }
 
 @media (min-width: 800px) {
