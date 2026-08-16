@@ -223,13 +223,18 @@ async function writeCalendarEvent({
   endMs,
   roomName,
   meetLink,
+  organizerName,
+  prospectName,
   organizerEmail,
   prospectEmail,
 }) {
   if (!caldavConfigured()) {
     return;
   }
-  const attendeeEmails = [organizerEmail, prospectEmail].filter(Boolean);
+  const attendees = [
+    { email: organizerEmail, name: organizerName },
+    { email: prospectEmail, name: prospectName },
+  ].filter((attendee) => attendee.email);
   const uid = bookingUid(bookingId);
   try {
     const ics = buildVEvent({
@@ -240,8 +245,8 @@ async function writeCalendarEvent({
       summary: roomName,
       description: roomName,
       location: meetLink,
-      organizerEmail: CALDAV_USER,
-      attendeeEmails,
+      organizer: { email: CALDAV_USER },
+      attendees,
     });
     await putEvent({ uid, ics });
   } catch (err) {
@@ -449,6 +454,8 @@ export async function createMeetingRoom(body) {
     endMs: scheduled_end,
     roomName: room_name,
     meetLink,
+    organizerName: organizer_name,
+    prospectName: prospect_name,
     organizerEmail: organizer_email,
     prospectEmail: prospect_email,
   });
@@ -602,6 +609,8 @@ export async function updateMeetingRoom(roomId, body) {
     endMs: newEnd,
     roomName: room_name || newState.prospect_name || newState.booking_id,
     meetLink,
+    organizerName: newState.organizer_name,
+    prospectName: newState.prospect_name,
     organizerEmail,
     prospectEmail,
   });

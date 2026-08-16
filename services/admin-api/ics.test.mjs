@@ -21,8 +21,11 @@ function baseEvent(overrides = {}) {
     summary: "Appointment",
     description: "Join: https://call.example.com/m",
     location: "https://call.example.com/m",
-    organizerEmail: "calendar@example.com",
-    attendeeEmails: ["organizer@example.com", "guest@example.com"],
+    organizer: { email: "calendar@example.com", name: "Reception" },
+    attendees: [
+      { email: "organizer@example.com", name: "Alex Organizer" },
+      { email: "guest@example.com", name: "Sam Guest" },
+    ],
     ...overrides,
   };
 }
@@ -60,11 +63,11 @@ describe("buildVEvent golden documents", () => {
         "DESCRIPTION:Join: https://call.example.com/m",
         "LOCATION:https://call.example.com/m",
         "URL:https://call.example.com/m",
-        "ORGANIZER;CN=calendar@example.com:mailto:calendar@example.com",
-        "ATTENDEE;CN=organizer@example.com;RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=N",
-        " EEDS-ACTION:mailto:organizer@example.com",
-        "ATTENDEE;CN=guest@example.com;RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS",
-        " -ACTION:mailto:guest@example.com",
+        "ORGANIZER;CN=Reception:mailto:calendar@example.com",
+        "ATTENDEE;CN=Alex Organizer;RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-AC",
+        " TION:mailto:organizer@example.com",
+        "ATTENDEE;CN=Sam Guest;RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION:",
+        " mailto:guest@example.com",
         "STATUS:CONFIRMED",
         "BEGIN:VALARM",
         "ACTION:DISPLAY",
@@ -121,8 +124,8 @@ describe("buildVEvent golden documents", () => {
         baseEvent({
           description: "",
           location: "",
-          organizerEmail: "",
-          attendeeEmails: ["", null, undefined],
+          organizer: { email: "" },
+          attendees: [{ email: "" }, null, undefined],
         }),
       ),
     );
@@ -161,8 +164,8 @@ describe("text escaping and injection guards", () => {
         uid: "booking\r\n-2@example.com",
         summary: "one\r\ntwo",
         location: "https://call.example.com/\r\nm",
-        organizerEmail: "calendar\r\n@example.com",
-        attendeeEmails: ["guest\r\n@example.com"],
+        organizer: { email: "calendar\r\n@example.com", name: "Rec\r\neption" },
+        attendees: [{ email: "guest\r\n@example.com", name: "Sam\r\nGuest" }],
       }),
     );
 
@@ -241,31 +244,72 @@ describe("date-time rendering", () => {
   });
 });
 
+describe("calendar user parameters", () => {
+  // RFC 5545 section 3.1.1: only a quoted-string may contain these characters,
+  // and the TEXT backslash escapes are not defined for parameter values.
+  const names = [
+    ["Doe, Jane", 'CN="Doe, Jane"'],
+    ["Jane Doe", "CN=Jane Doe"],
+    ["Dr; Doe", 'CN="Dr; Doe"'],
+    ["urn:x", 'CN="urn:x"'],
+    ['Jane "JD" Doe', "CN=Jane JD Doe"],
+  ];
+
+  for (const [name, expected] of names) {
+    test(`${JSON.stringify(name)} renders as ${expected}`, () => {
+      const lines = logicalLines(
+        buildVEvent(baseEvent({ organizer: { email: "c@example.com", name } })),
+      );
+
+      assert.ok(
+        lines.some((line) => line.startsWith(`ORGANIZER;${expected}:`)),
+        JSON.stringify(lines.filter((line) => line.startsWith("ORGANIZER"))),
+      );
+    });
+  }
+
+  test("a name is never TEXT-escaped", () => {
+    const lines = logicalLines(
+      buildVEvent(
+        baseEvent({ organizer: { email: "c@example.com", name: "Doe, Jane" } }),
+      ),
+    );
+
+    assert.ok(!lines.some((line) => line.includes("\\,")));
+  });
+
+  test("an unknown name leaves the parameter out entirely", () => {
+    const lines = logicalLines(
+      buildVEvent(
+        baseEvent({
+          organizer: { email: "c@example.com", name: "" },
+          attendees: [{ email: "guest@example.com" }],
+        }),
+      ),
+    );
+
+    assert.ok(lines.includes("ORGANIZER:mailto:c@example.com"));
+    assert.ok(
+      lines.some(
+        (line) => line.startsWith("ATTENDEE;RSVP=") && !line.includes("CN="),
+      ),
+    );
+  });
+
+  test("names reach the calendar, addresses stay in the mailto value", () => {
+    const document = unfold(buildVEvent(baseEvent()));
+
+    assert.ok(document.includes("CN=Alex Organizer;RSVP=TRUE"));
+    assert.ok(document.includes("CN=Sam Guest;RSVP=TRUE"));
+    assert.ok(!document.includes("CN=organizer@example.com"));
+  });
+});
+
 // These pin behaviour the CalDAV interoperability work is expected to change.
 // Each one is a deliberate fence: when the corresponding fix lands, the
 // assertion below is rewritten in the same commit rather than quietly passing.
 describe("known gaps (deliberate fences)", () => {
   const ics = () => buildVEvent(baseEvent());
-
-  test("fence: CN parameters are TEXT-escaped rather than quoted", () => {
-    const lines = logicalLines(
-      buildVEvent(baseEvent({ organizerEmail: "a,b@example.com" })),
-    );
-
-    assert.ok(
-      lines.some((line) => line.startsWith("ORGANIZER;CN=a\\,b@example.com:")),
-    );
-  });
-
-  test("fence: CN parameters carry the address, not a display name", () => {
-    const lines = logicalLines(ics());
-
-    assert.ok(
-      lines.includes(
-        "ORGANIZER;CN=calendar@example.com:mailto:calendar@example.com",
-      ),
-    );
-  });
 
   test("fence: the alarm is unconditional and has no UID", () => {
     const lines = logicalLines(ics());

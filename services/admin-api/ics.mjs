@@ -34,6 +34,23 @@ function sanitizeRaw(value) {
   return String(value ?? "").replace(/[\r\n]/g, "");
 }
 
+// Render a property parameter value. RFC 5545 §3.1.1 requires a quoted-string
+// when the value contains ':', ';' or ',', and defines no escaping mechanism
+// for parameter values at all — so the TEXT escapes must not be used here, and
+// a DQUOTE, which has no representation inside a quoted-string, is dropped.
+function paramValue(value) {
+  const clean = sanitizeRaw(value).replace(/"/g, "");
+  return /[:;,]/.test(clean) ? `"${clean}"` : clean;
+}
+
+// ORGANIZER / ATTENDEE line for one calendar user. CN is a display name, so it
+// is left out when no name is known rather than filled with the address, which
+// is what a client falls back to showing anyway.
+function calendarUser(property, { email, name }, parameters = "") {
+  const cn = name ? `;CN=${paramValue(name)}` : "";
+  return `${property}${cn}${parameters}:mailto:${sanitizeRaw(email)}`;
+}
+
 // Fold a single content line to <= 75 octets per RFC 5545 §3.1, continuing
 // with a CRLF + single space. Folding is octet-based (UTF-8), so we operate
 // on bytes and never split a multi-byte sequence.
@@ -74,7 +91,7 @@ function formatUtc(ms) {
 
 // buildVEvent({
 //   uid, sequence, startMs, endMs, summary, description,
-//   location, organizerEmail, attendeeEmails
+//   location, organizer, attendees
 // }) -> VCALENDAR string (CRLF line endings).
 export function buildVEvent({
   uid,
@@ -84,8 +101,8 @@ export function buildVEvent({
   summary,
   description,
   location,
-  organizerEmail,
-  attendeeEmails = [],
+  organizer,
+  attendees = [],
 }) {
   const cleanUid = sanitizeRaw(uid);
 
@@ -109,14 +126,17 @@ export function buildVEvent({
     lines.push(`URL:${sanitizeRaw(location)}`);
   }
 
-  if (organizerEmail) {
-    lines.push(`ORGANIZER;CN=${escapeText(organizerEmail)}:mailto:${sanitizeRaw(organizerEmail)}`);
+  if (organizer?.email) {
+    lines.push(calendarUser("ORGANIZER", organizer));
   }
-  for (const email of attendeeEmails) {
-    if (!email) continue;
-    const clean = sanitizeRaw(email);
+  for (const attendee of attendees) {
+    if (!attendee?.email) continue;
     lines.push(
-      `ATTENDEE;CN=${escapeText(email)};RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION:mailto:${clean}`,
+      calendarUser(
+        "ATTENDEE",
+        attendee,
+        ";RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION",
+      ),
     );
   }
 
