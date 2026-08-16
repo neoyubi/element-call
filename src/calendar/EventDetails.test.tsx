@@ -128,20 +128,30 @@ describe("EventDetails", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Reschedule" }));
     const future = new Date(Date.now() + 86400000);
-    const date = `${future.getFullYear()}-${String(future.getMonth() + 1).padStart(2, "0")}-${String(future.getDate()).padStart(2, "0")}`;
+    // Typed the way the field is written, not as an ISO string: the field
+    // reads digits in the configured order, so this is what a person enters.
+    const typed = `${String(future.getDate()).padStart(2, "0")}${String(future.getMonth() + 1).padStart(2, "0")}${future.getFullYear()}`;
     await userEvent.clear(screen.getByLabelText("Date"));
-    await userEvent.type(screen.getByLabelText("Date"), date);
+    await userEvent.type(screen.getByLabelText("Date"), typed);
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onDone).toHaveBeenCalled());
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(`${ADMIN_API}/api/admin/rooms/!a%3Aexample.org`);
     expect(init?.method).toBe("PUT");
-    expect(Object.keys(JSON.parse(init?.body as string))).toEqual([
+    const sent = JSON.parse(init?.body as string) as {
+      scheduled_start: number;
+    };
+    expect(Object.keys(sent)).toEqual([
       "scheduled_start",
       "scheduled_end",
       "timezone",
     ]);
+    // The date actually reaching the service is the one that was typed.
+    const start = new Date(sent.scheduled_start);
+    expect(start.getFullYear()).toBe(future.getFullYear());
+    expect(start.getMonth()).toBe(future.getMonth());
+    expect(start.getDate()).toBe(future.getDate());
   });
 
   it("refuses a start in the past without asking the service", async () => {
@@ -159,7 +169,9 @@ describe("EventDetails", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(
-      await screen.findByText("That time has already passed. Pick a later one."),
+      await screen.findByText(
+        "That time has already passed. Pick a later one.",
+      ),
     ).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });

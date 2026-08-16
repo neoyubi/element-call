@@ -333,11 +333,22 @@ function layOutDay(events: PositionedEvent[]): PositionedEvent[] {
   return events;
 }
 
-/** The time of day, in the locale's own clock convention. */
+// Times are typed on a 24-hour clock, so by default they are shown on one too:
+// displaying a convention the form does not accept makes the app contradict
+// itself. A deployment can opt back into the locale's own clock.
+function hourCycle(): Intl.DateTimeFormatOptions["hourCycle"] {
+  const configured =
+    Config.get().calendar?.time_display_24h ??
+    CALENDAR_DEFAULTS.time_display_24h;
+  return configured ? "h23" : undefined;
+}
+
+/** The time of day. */
 export function formatTimeOfDay(locale: string, date: Date | number): string {
   return dateTimeFormat(locale, {
     hour: "2-digit",
     minute: "2-digit",
+    hourCycle: hourCycle(),
   }).format(date);
 }
 
@@ -380,9 +391,10 @@ export function formatDateRange(locale: string, from: Date, to: Date): string {
 
 /** The label for one row of a time grid's hour gutter. */
 export function formatHour(locale: string, hour: number): string {
-  return dateTimeFormat(locale, { hour: "numeric" }).format(
-    new Date(2000, 0, 1, hour),
-  );
+  return dateTimeFormat(locale, {
+    hour: "numeric",
+    hourCycle: hourCycle(),
+  }).format(new Date(2000, 0, 1, hour));
 }
 
 /**

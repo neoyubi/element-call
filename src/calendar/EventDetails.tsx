@@ -26,6 +26,7 @@ import {
 } from "../home/useScheduledMeetings";
 import { formatDate, formatTime, parseStart } from "../home/dateFormat";
 import { formatDay, formatTimeOfDay } from "./dates";
+import { DateField, TimeField } from "../input/DateTimeInput";
 import styles from "./EventDetails.module.css";
 
 interface Props {
@@ -189,29 +190,13 @@ export const EventDetails: FC<Props> = ({
               <Text size="sm" className={styles.note}>
                 {t("schedule_meeting.date")}
               </Text>
-              <input
-                id={dateId}
-                type="date"
-                className={styles.input}
-                value={date}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setDate(e.target.value)
-                }
-              />
+              <DateField id={dateId} value={date} onChange={setDate} />
             </label>
             <label className={styles.field} htmlFor={timeId}>
               <Text size="sm" className={styles.note}>
                 {t("schedule_meeting.time")}
               </Text>
-              <input
-                id={timeId}
-                type="time"
-                className={styles.input}
-                value={time}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setTime(e.target.value)
-                }
-              />
+              <TimeField id={timeId} value={time} onChange={setTime} />
             </label>
             <label className={styles.field} htmlFor={durationId}>
               <Text size="sm" className={styles.note}>

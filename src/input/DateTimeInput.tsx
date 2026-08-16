@@ -11,7 +11,24 @@ import {
   useState,
 } from "react";
 import classNames from "classnames";
+import { useTranslation } from "react-i18next";
 
+import { Config } from "../config/Config";
+import { CALENDAR_DEFAULTS } from "../config/ConfigOptions";
+import {
+  appendDateInput,
+  appendTimeInput,
+  canonicalTimeToDigits,
+  dateDigitCapacity,
+  dateDigitsToIso,
+  formatDateDigits,
+  formatTimeDigits,
+  isoToDateDigits,
+  parsePastedDate,
+  parsePastedTime,
+  timeDigitCapacity,
+  timeDigitsToCanonical,
+} from "../home/dateFormat";
 import styles from "./DateTimeInput.module.css";
 
 // A digit stream rendered with separators. The caller exchanges the canonical
@@ -77,12 +94,18 @@ export const DateTimeInput: FC<DateTimeInputProps> = ({
   // digit count would put it, which is what typing at the end wants.
   const caretToEnd = useRef(false);
 
+  // What this field last handed upwards. Comparing against it distinguishes a
+  // value the parent replaced from the echo of our own change: mid-entry the
+  // canonical form is briefly undefined, and re-seeding on that would wipe the
+  // digits the user is still typing.
+  const lastEmitted = useRef(value);
+
   // Follow the value when the parent replaces it, e.g. a slot prefill.
   useEffect(() => {
-    setDigits((current) =>
-      toCanonical(current) === value ? current : toDigits(value),
-    );
-  }, [value, toDigits, toCanonical]);
+    if (value === lastEmitted.current) return;
+    lastEmitted.current = value;
+    setDigits(toDigits(value));
+  }, [value, toDigits]);
 
   useLayoutEffect(() => {
     if (!caretToEnd.current) return;
@@ -96,7 +119,9 @@ export const DateTimeInput: FC<DateTimeInputProps> = ({
   const commit = useCallback(
     (next: string): void => {
       setDigits(next);
-      onChange(toCanonical(next) ?? "");
+      const canonical = toCanonical(next) ?? "";
+      lastEmitted.current = canonical;
+      onChange(canonical);
     },
     [onChange, toCanonical],
   );
@@ -158,6 +183,7 @@ export const DateTimeInput: FC<DateTimeInputProps> = ({
         setDigits(completed);
         setAnnouncement(describeNormalized(format(completed)));
       }
+      lastEmitted.current = canonical;
       onChange(canonical);
     }
     onBlur?.();
@@ -213,5 +239,86 @@ export const DateTimeInput: FC<DateTimeInputProps> = ({
         {announcement}
       </span>
     </div>
+  );
+};
+
+interface FieldProps {
+  id?: string;
+  value: string;
+  onChange: (value: string) => void;
+  onBlur?: () => void;
+  error?: string;
+  disabled?: boolean;
+}
+
+/**
+ * A date typed in the deployment's written order. Every caller gets the same
+ * format, so the two scheduling surfaces cannot drift apart.
+ */
+export const DateField: FC<FieldProps> = (props) => {
+  const { t } = useTranslation();
+  const calendar = Config.get().calendar;
+  const order =
+    calendar?.date_input_order ?? CALENDAR_DEFAULTS.date_input_order;
+  const separator =
+    calendar?.date_input_separator ?? CALENDAR_DEFAULTS.date_input_separator;
+
+  return (
+    <DateTimeInput
+      {...props}
+      label={t("schedule_meeting.date")}
+      formatDescription={t("schedule_meeting.date_format_description")}
+      placeholder={t("schedule_meeting.date_format_hint")}
+      capacity={dateDigitCapacity(order)}
+      toDigits={useCallback(
+        (value: string) => isoToDateDigits(value, order),
+        [order],
+      )}
+      format={useCallback(
+        (digits: string) => formatDateDigits(digits, order, separator),
+        [order, separator],
+      )}
+      append={useCallback(
+        (digits: string, input: string) =>
+          appendDateInput(digits, input, order),
+        [order],
+      )}
+      parsePasted={useCallback(
+        (text: string) => parsePastedDate(text, order),
+        [order],
+      )}
+      toCanonical={useCallback(
+        (digits: string) => dateDigitsToIso(digits, order, new Date()),
+        [order],
+      )}
+      describeNormalized={useCallback(
+        (value: string) => t("schedule_meeting.date_normalized", { value }),
+        [t],
+      )}
+    />
+  );
+};
+
+/** A start time, typed on a 24-hour clock. */
+export const TimeField: FC<FieldProps> = (props) => {
+  const { t } = useTranslation();
+
+  return (
+    <DateTimeInput
+      {...props}
+      label={t("schedule_meeting.time")}
+      formatDescription={t("schedule_meeting.time_format_description")}
+      placeholder={t("schedule_meeting.time_format_hint")}
+      capacity={timeDigitCapacity()}
+      toDigits={canonicalTimeToDigits}
+      format={formatTimeDigits}
+      append={appendTimeInput}
+      parsePasted={parsePastedTime}
+      toCanonical={timeDigitsToCanonical}
+      describeNormalized={useCallback(
+        (value: string) => t("schedule_meeting.time_normalized", { value }),
+        [t],
+      )}
+    />
   );
 };

@@ -21,23 +21,9 @@ import CheckIcon from "@vector-im/compound-design-tokens/assets/web/icons/check"
 import { Config } from "../config/Config";
 import { CALENDAR_DEFAULTS } from "../config/ConfigOptions";
 import { InputField } from "../input/Input";
-import { DateTimeInput } from "../input/DateTimeInput";
+import { DateField, TimeField } from "../input/DateTimeInput";
 import { scheduleAdvancedOpen, useSetting } from "../settings/settings";
-import {
-  appendDateInput,
-  appendTimeInput,
-  canonicalTimeToDigits,
-  dateDigitCapacity,
-  dateDigitsToIso,
-  formatDateDigits,
-  formatTimeDigits,
-  isoToDateDigits,
-  parsePastedDate,
-  parsePastedTime,
-  parseStart,
-  timeDigitCapacity,
-  timeDigitsToCanonical,
-} from "./dateFormat";
+import { parseStart } from "./dateFormat";
 import styles from "./ScheduleMeetingForm.module.css";
 
 interface Props {
@@ -122,10 +108,6 @@ export const ScheduleMeetingForm: FC<Props> = ({
     calendar?.duration_options ?? CALENDAR_DEFAULTS.duration_options;
   const reminderOptions =
     calendar?.reminder_options ?? CALENDAR_DEFAULTS.reminder_options;
-  const dateOrder =
-    calendar?.date_input_order ?? CALENDAR_DEFAULTS.date_input_order;
-  const dateSeparator =
-    calendar?.date_input_separator ?? CALENDAR_DEFAULTS.date_input_separator;
 
   const [inviteeName, setInviteeName] = useState("");
   const [inviteeEmail, setInviteeEmail] = useState("");
@@ -438,39 +420,6 @@ export const ScheduleMeetingForm: FC<Props> = ({
       });
   }, [result]);
 
-  // Adapters binding the masked field to the configured written format. They
-  // live here rather than inline so the hook order does not depend on whether
-  // the success panel is showing.
-  const dateToDigits = useCallback(
-    (value: string) => isoToDateDigits(value, dateOrder),
-    [dateOrder],
-  );
-  const dateFormatter = useCallback(
-    (digits: string) => formatDateDigits(digits, dateOrder, dateSeparator),
-    [dateOrder, dateSeparator],
-  );
-  const dateAppend = useCallback(
-    (digits: string, input: string) =>
-      appendDateInput(digits, input, dateOrder),
-    [dateOrder],
-  );
-  const datePaste = useCallback(
-    (text: string) => parsePastedDate(text, dateOrder),
-    [dateOrder],
-  );
-  const dateCanonical = useCallback(
-    (digits: string) => dateDigitsToIso(digits, dateOrder, new Date()),
-    [dateOrder],
-  );
-  const describeDate = useCallback(
-    (value: string) => t("schedule_meeting.date_normalized", { value }),
-    [t],
-  );
-  const describeTime = useCallback(
-    (value: string) => t("schedule_meeting.time_normalized", { value }),
-    [t],
-  );
-
   // "45 min", "1 h" — the shape a chip can carry without wrapping.
   const shortLength = useCallback(
     (minutes: number): string =>
@@ -659,41 +608,17 @@ export const ScheduleMeetingForm: FC<Props> = ({
               role="group"
               aria-labelledby={whenLabelId}
             >
-              <DateTimeInput
+              <DateField
                 id={dateId}
-                label={t("schedule_meeting.date")}
-                formatDescription={t(
-                  "schedule_meeting.date_format_description",
-                )}
-                placeholder={t("schedule_meeting.date_format_hint")}
                 value={date}
-                capacity={dateDigitCapacity(dateOrder)}
-                toDigits={dateToDigits}
-                format={dateFormatter}
-                append={dateAppend}
-                parsePasted={datePaste}
-                toCanonical={dateCanonical}
-                describeNormalized={describeDate}
                 onChange={setDate}
                 onBlur={() => onFieldBlur("date")}
                 error={errors.date}
                 disabled={submitting}
               />
-              <DateTimeInput
+              <TimeField
                 id={timeId}
-                label={t("schedule_meeting.time")}
-                formatDescription={t(
-                  "schedule_meeting.time_format_description",
-                )}
-                placeholder={t("schedule_meeting.time_format_hint")}
                 value={time}
-                capacity={timeDigitCapacity()}
-                toDigits={canonicalTimeToDigits}
-                format={formatTimeDigits}
-                append={appendTimeInput}
-                parsePasted={parsePastedTime}
-                toCanonical={timeDigitsToCanonical}
-                describeNormalized={describeTime}
                 onChange={setTime}
                 onBlur={() => onFieldBlur("time")}
                 error={errors.time}
