@@ -104,7 +104,7 @@ export const ScheduleMeetingForm: FC<Props> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const calendar = Config.get().calendar;
-  const durationOptions =
+  const configuredDurations =
     calendar?.duration_options ?? CALENDAR_DEFAULTS.duration_options;
   const reminderOptions =
     calendar?.reminder_options ?? CALENDAR_DEFAULTS.reminder_options;
@@ -138,6 +138,17 @@ export const ScheduleMeetingForm: FC<Props> = ({
         ? SUPPORTED_TIMEZONES
         : [timezone, ...SUPPORTED_TIMEZONES],
     [timezone],
+  );
+
+  // A length dragged out on the calendar grid is any multiple of the snap, so
+  // it is usually not one of the offered ones. Offer it too, rather than
+  // showing a row of chips with none of them selected.
+  const durationOptions = useMemo(
+    () =>
+      configuredDurations.includes(duration)
+        ? configuredDurations
+        : [...configuredDurations, duration].sort((a, b) => a - b),
+    [configuredDurations, duration],
   );
 
   const [errors, setErrors] = useState<Errors>({});
@@ -436,6 +447,8 @@ export const ScheduleMeetingForm: FC<Props> = ({
     value: number,
     onChange: (value: number) => void,
     labelFor: (minutes: number) => string,
+    /** Spoken form, since the chip's own text is abbreviated. */
+    spokenFor: (minutes: number) => string,
     describedBy?: string,
   ): ReactNode => (
     <fieldset className={styles.chips} aria-describedby={describedBy}>
@@ -449,16 +462,14 @@ export const ScheduleMeetingForm: FC<Props> = ({
               type="radio"
               id={id}
               name={name}
+              // The chip reads "45 min"; say "45 minutes" rather than both.
+              aria-label={spokenFor(option)}
               checked={value === option}
               disabled={submitting}
               onChange={() => onChange(option)}
             />
             <label className={styles.chip} htmlFor={id}>
               {labelFor(option)}
-              <span className={styles.offscreen}>
-                {" "}
-                {t("schedule_meeting.minutes", { count: option })}
-              </span>
             </label>
           </span>
         );
@@ -639,6 +650,7 @@ export const ScheduleMeetingForm: FC<Props> = ({
             duration,
             setDuration,
             shortLength,
+            (minutes) => t("schedule_meeting.minutes", { count: minutes }),
           )}
 
           <p className={styles.context}>
@@ -693,6 +705,10 @@ export const ScheduleMeetingForm: FC<Props> = ({
                       minutes === 0
                         ? t("schedule_meeting.reminder_none")
                         : shortLength(minutes),
+                    (minutes) =>
+                      minutes === 0
+                        ? t("schedule_meeting.reminder_none")
+                        : t("schedule_meeting.minutes", { count: minutes }),
                   )}
                   <p className={styles.help}>
                     {t("schedule_meeting.reminder_help")}

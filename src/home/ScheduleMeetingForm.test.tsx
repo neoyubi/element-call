@@ -1,5 +1,5 @@
 import { type MatrixClient } from "matrix-js-sdk";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TooltipProvider } from "@vector-im/compound-web";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,12 +34,17 @@ function fakeClient(): MatrixClient {
 
 function renderForm(
   onDone?: () => void,
+  initialDurationMinutes?: number,
 ): ReturnType<typeof render> & { client: MatrixClient } {
   const client = fakeClient();
   return {
     ...render(
       <TooltipProvider>
-        <ScheduleMeetingForm client={client} onDone={onDone} />
+        <ScheduleMeetingForm
+          client={client}
+          onDone={onDone}
+          initialDurationMinutes={initialDurationMinutes}
+        />
       </TooltipProvider>,
     ),
     client,
@@ -217,5 +222,25 @@ describe("ScheduleMeetingForm", () => {
       screen.getByRole("button", { name: "Schedule meeting" }),
     );
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it("offers a length dragged out on the calendar as its own choice", () => {
+    // 105 minutes is a multiple of the snap but not one of the offered
+    // lengths, which is the normal outcome of dragging a block out.
+    renderForm(undefined, 105);
+    const lengths = within(screen.getByRole("group", { name: "Length" }));
+
+    expect(lengths.getByRole("radio", { name: "105 minutes" })).toBeChecked();
+    // The configured lengths are still all there beside it.
+    for (const label of ["15 minutes", "30 minutes", "45 minutes"])
+      expect(lengths.getByRole("radio", { name: label })).toBeInTheDocument();
+  });
+
+  it("does not invent a choice when the length is already offered", () => {
+    renderForm(undefined, 30);
+    const lengths = within(screen.getByRole("group", { name: "Length" }));
+
+    expect(lengths.getByRole("radio", { name: "30 minutes" })).toBeChecked();
+    expect(lengths.getAllByRole("radio")).toHaveLength(4);
   });
 });
