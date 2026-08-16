@@ -105,16 +105,16 @@ logged and never fails the room operation.
 Leave `CALDAV_URL_BASE`, `CALDAV_USER` or `CALDAV_PASSWORD` unset and no
 calendar is written at all; rooms, join links and mail still work.
 
-| Variable                       | Default                               | Purpose                                                                                                                                            |
-| ------------------------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CALDAV_URL_BASE`              | unset                                 | Collection URL, e.g. `https://caldav.example.com/dav/calendar@example.com/Calendar/personal`                                                       |
-| `CALDAV_USER`                  | unset                                 | Account that owns the collection, e.g. `calendar@example.com`                                                                                      |
-| `CALDAV_PASSWORD`              | unset                                 | Its password. Never logged                                                                                                                         |
-| `CALDAV_ORGANIZER_EMAIL`       | `CALDAV_USER` when that is an address | Address written as the event organizer. It must be an address of the account owning the collection, or the server will not schedule on your behalf |
-| `CALDAV_ORGANIZER_NAME`        | unset                                 | Display name beside the organizer address                                                                                                          |
-| `MEETING_SUMMARY_TEMPLATE`     | `Appointment`                         | Event title, which is also the subject of every invitation mail                                                                                    |
-| `MEETING_DESCRIPTION_TEMPLATE` | `Join: {{meet_link}}`                 | Event body text                                                                                                                                    |
-| `ICS_ALARM_MINUTES`            | unset                                 | Minutes before the start for a display alarm. Unset or `0` writes none                                                                             |
+| Variable                       | Default                                | Purpose                                                                                                                                            |
+| ------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CALDAV_URL_BASE`              | unset                                  | Collection URL, e.g. `https://caldav.example.com/dav/calendar@example.com/Calendar/personal`                                                       |
+| `CALDAV_USER`                  | unset                                  | Account that owns the collection, e.g. `calendar@example.com`                                                                                      |
+| `CALDAV_PASSWORD`              | unset                                  | Its password. Never logged                                                                                                                         |
+| `CALDAV_ORGANIZER_EMAIL`       | `CALDAV_USER` when that is an address  | Address written as the event organizer. It must be an address of the account owning the collection, or the server will not schedule on your behalf |
+| `CALDAV_ORGANIZER_NAME`        | unset                                  | Display name beside the organizer address                                                                                                          |
+| `MEETING_SUMMARY_TEMPLATE`     | `Appointment`                          | Event title, which is also the subject of every invitation mail                                                                                    |
+| `MEETING_DESCRIPTION_TEMPLATE` | `Join the appointment:\n{{meet_link}}` | Event body text                                                                                                                                    |
+| `ICS_ALARM_MINUTES`            | unset                                  | Minutes before the start for a display alarm. Unset or `0` writes none                                                                             |
 
 Both templates accept `{{prospect_name}}`, `{{organizer_name}}` and
 `{{meet_link}}`; an unknown placeholder renders empty. The title reaches
@@ -141,6 +141,17 @@ says in its log whether the server advertises it. See
 | `POLL_INTERVAL_MS`            | `60000` | How often the mail pass runs                                                                                                                           |
 | `MEETING_RETENTION_DAYS`      | `30`    | Days after a meeting ends before names, addresses and the join link are erased from room state and the calendar event is removed                       |
 | `MEETING_DRY_RUN`             | off     | Set to `1` to log what the reschedule notice and the retention purge would do without doing it. Reminder mail is not covered by this and is still sent |
+
+Reminder and reschedule mail is sent as HTML with a plain-text alternative.
+These control how it looks; all are optional, and an unset one is simply not
+rendered.
+
+| Variable              | Default   | Purpose                                                      |
+| --------------------- | --------- | ------------------------------------------------------------ |
+| `MAIL_BRAND_NAME`     | unset     | Name shown in the header, and the logo's alt text            |
+| `MAIL_BRAND_LOGO_URL` | unset     | `https://` image used in the header instead of the name      |
+| `MAIL_BRAND_COLOR`    | `#2c7a7b` | Hex accent for the join button and links                     |
+| `MAIL_FOOTER_TEXT`    | unset     | One line below a rule, for an address or an unsubscribe note |
 
 `SYNAPSE_URL`, `BOT_ACCESS_TOKEN`, `SERVER_NAME`, `MEETING_STATE_TYPE`,
 `REMINDER_DEFAULT_MINUTES`, `DEFAULT_TIMEZONE` and the calendar variables

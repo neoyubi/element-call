@@ -5,6 +5,6 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY worker.mjs mailer.mjs ./
+COPY worker.mjs mailer.mjs mail-templates.mjs ./
 
 CMD ["node", "worker.mjs"]
