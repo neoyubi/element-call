@@ -7,12 +7,14 @@ Please see LICENSE in the repository root for full details.
 
 .banner {
   position: absolute;
-  padding: 29px;
+  padding: var(--cpd-space-7x);
   background-color: var(--cpd-color-bg-subtle-primary);
   vertical-align: middle;
   font-size: var(--font-size-body);
   text-align: center;
   z-index: 1;
-  top: 76px;
-  width: calc(100% - 58px);
+  inset-block-start: var(--header-block-size);
+  /* Spanning the container rather than subtracting the padding from a
+  percentage width, which had to be kept in step by hand */
+  inset-inline: 0;
 }

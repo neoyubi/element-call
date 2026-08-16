@@ -20,7 +20,7 @@ Please see LICENSE in the repository root for full details.
   flex: 1;
   align-items: center;
   white-space: nowrap;
-  height: 80px;
+  height: var(--header-block-size);
 }
 
 .headerLogo {

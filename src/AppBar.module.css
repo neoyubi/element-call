@@ -1,5 +1,7 @@
 .bar {
-  block-size: 64px;
+  /* Shorter than the page header, and the nav inside it follows suit */
+  --header-block-size: var(--cpd-space-16x);
+  block-size: var(--header-block-size);
   flex-shrink: 0;
 }
 
@@ -7,7 +9,7 @@
   position: absolute;
   inset-inline: 0;
   inset-block-start: 0;
-  block-size: 64px;
+  block-size: var(--header-block-size);
   z-index: var(--call-view-header-footer-layer);
 }
 
