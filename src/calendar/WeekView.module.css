@@ -58,7 +58,7 @@
 }
 
 .headerToday {
-  background-color: var(--cpd-color-bg-accent-subtle);
+  background-color: var(--cpd-color-bg-accent-selected);
   color: var(--cpd-color-text-action-accent);
 }
 
@@ -124,7 +124,7 @@
 
 @media (hover: hover) {
   .slotButton:hover {
-    background-color: var(--cpd-color-bg-accent-subtle);
+    background-color: var(--cpd-color-bg-accent-selected);
   }
 }
 

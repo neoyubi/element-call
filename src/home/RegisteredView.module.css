@@ -10,7 +10,7 @@ Please see LICENSE in the repository root for full details.
   inline-size: 100%;
   max-inline-size: 409px;
   padding-inline: var(--cpd-space-6x);
-  margin-block-end: var(--cpd-space-18x);
+  margin-block-end: var(--cpd-space-16x);
   box-sizing: border-box;
 }
 

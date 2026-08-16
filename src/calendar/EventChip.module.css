@@ -7,7 +7,7 @@
   padding: var(--cpd-space-1x) var(--cpd-space-2x);
   border: none;
   border-radius: var(--cpd-space-1x);
-  background-color: var(--cpd-color-bg-accent-subtle);
+  background-color: var(--cpd-color-bg-accent-selected);
   color: var(--cpd-color-text-primary);
   font: inherit;
   font-size: var(--cpd-font-size-body-sm);
