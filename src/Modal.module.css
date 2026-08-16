@@ -21,6 +21,15 @@ Please see LICENSE in the repository root for full details.
   max-block-size: min(600px, calc(100dvh - var(--cpd-space-16x)));
 }
 
+/* 600px is a comfort ceiling for dialogs whose content scrolls anyway. Content
+that is a single finite thing — a form, say — can declare itself content-sized
+and is then bounded only by the window, so it is never given a scrollbar on a
+screen with room to spare. The viewport bound still applies, so the dialog stays
+reachable. */
+.dialog:has([data-modal-fit="content"]) {
+  max-block-size: calc(100dvh - var(--cpd-space-16x));
+}
+
 .content {
   display: flex;
   flex-direction: column;
@@ -128,6 +137,18 @@ body[data-platform="ios"] .drawer {
   padding-inline: var(--cpd-space-10x);
   padding-block: var(--cpd-space-10x) var(--cpd-space-12x);
   overflow: auto;
+  /* Reaching the end of a scrolling dialog should not start scrolling the page
+  behind it. */
+  overscroll-behavior: contain;
+  /* Moving focus to a field further down, as a form does when it reports the
+  first invalid one, should glide rather than jump. */
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog .body {
+    scroll-behavior: auto;
+  }
 }
 
 .drawer .body {
