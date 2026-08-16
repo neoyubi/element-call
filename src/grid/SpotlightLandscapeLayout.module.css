@@ -12,7 +12,6 @@ Please see LICENSE in the repository root for full details.
   gap: var(--gap);
   --grid-slot-width: 180px;
   grid-template-columns: 1fr var(--grid-slot-width);
-  grid-template-rows: minmax(1fr, auto);
   padding-inline: var(--gap);
 }
 
@@ -20,6 +19,12 @@ Please see LICENSE in the repository root for full details.
   container: spotlight / size;
   display: grid;
   place-items: center;
+}
+
+/* Reserve room below the spotlight for the page indicators, which are
+positioned outside the tile's box. Mirrors the portrait layout. */
+.spotlight.withIndicators {
+  margin-block-end: calc(2 * var(--cpd-space-4x) + 2px);
 }
 
 /* CSS makes us put a condition here, even though all we want to do is
