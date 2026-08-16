@@ -20,6 +20,7 @@ import { logger } from "matrix-js-sdk/lib/logger";
 
 import { HomePage } from "./home/HomePage";
 import { LoginPage } from "./auth/LoginPage";
+import { CalendarPage } from "./calendar/CalendarPage";
 import { RoomPage } from "./room/RoomPage";
 import { ClientProvider } from "./ClientContext";
 import { ErrorPage, LoadingPage } from "./FullScreenView";
@@ -87,6 +88,7 @@ export const App: FC<Props> = ({ vm }) => {
             <Routes>
               <SentryRoute path="/" element={<HomePage />} />
               <SentryRoute path="/login" element={<LoginPage />} />
+              <SentryRoute path="/calendar" element={<CalendarPage />} />
               {/* /register route removed - team accounts created via Synapse admin */}
               <SentryRoute path="*" element={<RoomPage />} />
             </Routes>

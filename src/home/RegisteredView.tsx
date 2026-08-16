@@ -18,7 +18,8 @@ import { useTranslation } from "react-i18next";
 import { Heading, Text } from "@vector-im/compound-web";
 import { logger } from "matrix-js-sdk/lib/logger";
 import { Button } from "@vector-im/compound-web";
-import { useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { CalendarIcon } from "@vector-im/compound-design-tokens/assets/web/icons";
 
 import {
   createRoom,
@@ -47,6 +48,7 @@ import { parseRotatingCode, deriveSharedKey } from "../e2ee/deriveKeyFromCode";
 import { saveKeyMaterialForAlias } from "../e2ee/sharedKeyManagement";
 import { Config } from "../config/Config";
 import { productName } from "../branding";
+import { widget } from "../widget";
 
 interface Props {
   client: MatrixClient;
@@ -309,6 +311,20 @@ export const RegisteredView: FC<Props> = ({ client, isPasswordlessUser }) => {
                 )}
               </Form>
               {canSchedule && <ScheduleMeetingForm client={client} />}
+              {/* A widget has no way to route anywhere but the call it was
+                  opened for, so the calendar is a standalone affordance. */}
+              {!widget && (
+                <Button
+                  as={RouterLink}
+                  to="/calendar"
+                  kind="secondary"
+                  size="lg"
+                  Icon={CalendarIcon}
+                  className={styles.calendarLink}
+                >
+                  {t("calendar.open")}
+                </Button>
+              )}
             </>
           )}
           <UpcomingMeetings client={client} />
