@@ -86,6 +86,27 @@ const REMINDER_DEFAULT_MINUTES = parseInt(
   10,
 );
 
+// The meeting fields that reach the calendar object. When none of them
+// changes, the document we would write is byte-identical to the stored one, so
+// writing it anyway is not merely wasted: every organizer write asserts
+// PARTSTAT=NEEDS-ACTION on each attendee and a raised SEQUENCE tells clients
+// this revision supersedes the one they hold, which resets a staff member's
+// own acceptance and prompts everyone again. A reminder or timezone edit must
+// not do that to anybody.
+//
+// The zone is absent because the calendar carries absolute instants, and the
+// reminder lead time because the alarm is driven by configuration rather than
+// by meeting state.
+export const ICS_AFFECTING_FIELDS = [
+  "scheduled_start",
+  "scheduled_end",
+  "organizer_name",
+  "prospect_name",
+  "organizer_email",
+  "prospect_email",
+  "meet_link",
+];
+
 // Stable iCalendar UID for a booking. Domain comes from SERVER_NAME so no
 // deployment hostname is baked into the source.
 //
@@ -570,9 +591,6 @@ export async function updateMeetingRoom(roomId, body) {
   const startChanged =
     scheduled_start !== undefined && scheduled_start !== current.scheduled_start;
 
-  // SEQUENCE bumps on every revision; a missing prior value is treated as 0.
-  const sequence = (Number.isInteger(current.sequence) ? current.sequence : 0) + 1;
-
   const reminderMinutes =
     reminder_minutes !== undefined
       ? normalizeReminderMinutes(reminder_minutes)
@@ -609,7 +627,6 @@ export async function updateMeetingRoom(roomId, body) {
     prospect_email: prospectEmail,
     practice_type: merge(practice_type, "practice_type", "solo"),
     timezone: tz,
-    sequence,
     reminder_minutes: reminderMinutes,
     // Preserve the E2EE key; dropping it would break existing join links.
     key_material: current.key_material,
@@ -617,6 +634,16 @@ export async function updateMeetingRoom(roomId, body) {
   if (meetLink) {
     newState.meet_link = meetLink;
   }
+
+  // A missing prior value is treated as 0. An absent field and an empty one
+  // are the same absence here, so a stored meeting that predates a field does
+  // not read as a change.
+  const icsChanged = ICS_AFFECTING_FIELDS.some(
+    (field) => (newState[field] ?? "") !== (current[field] ?? ""),
+  );
+  const priorSequence = Number.isInteger(current.sequence) ? current.sequence : 0;
+  newState.sequence = icsChanged ? priorSequence + 1 : priorSequence;
+
   // Carry reminder_sent forward, but clear it when the start time moved so the
   // worker re-arms and re-sends the reminder for the new time.
   if (current.reminder_sent !== undefined && !startChanged) {
@@ -668,18 +695,21 @@ export async function updateMeetingRoom(roomId, body) {
     );
   }
 
-  // Push an updated calendar invite with the bumped SEQUENCE (best-effort).
-  await writeCalendarEvent({
-    bookingId: newState.booking_id,
-    sequence,
-    startMs: newStart,
-    endMs: newEnd,
-    meetLink,
-    organizerName: newState.organizer_name,
-    prospectName: newState.prospect_name,
-    organizerEmail,
-    prospectEmail,
-  });
+  // Push the updated invitation with the raised SEQUENCE (best-effort). Skipped
+  // entirely when nothing a calendar can see moved: see ICS_AFFECTING_FIELDS.
+  if (icsChanged) {
+    await writeCalendarEvent({
+      bookingId: newState.booking_id,
+      sequence: newState.sequence,
+      startMs: newStart,
+      endMs: newEnd,
+      meetLink,
+      organizerName: newState.organizer_name,
+      prospectName: newState.prospect_name,
+      organizerEmail,
+      prospectEmail,
+    });
+  }
 
   console.log(`Updated room ${roomId} meeting metadata`);
   return { status: 200, body: { success: true, room_id: roomId } };

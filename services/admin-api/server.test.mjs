@@ -21,6 +21,7 @@ const {
   createMeetingRoom,
   deleteMeetingRoom,
   getCorsHeaders,
+  ICS_AFFECTING_FIELDS,
   updateMeetingRoom,
 } = await import("./server.mjs");
 
@@ -278,26 +279,98 @@ describe("updateMeetingRoom merges request over stored state", () => {
   });
 });
 
-// The sequence bump and the calendar write are unconditional today: even an
-// edit no calendar can see rewrites the resource, which resets every
-// attendee's participation status. These fences change with that behaviour.
-describe("calendar writes (deliberate fences)", () => {
-  test("fence: a reminder-only edit still bumps the sequence and rewrites", async () => {
+// A calendar write asserts NEEDS-ACTION on every attendee, and a raised
+// sequence tells clients to supersede what they hold, so an edit no calendar
+// can see must produce neither.
+describe("the calendar is rewritten only when it would differ", () => {
+  const unchanged = [
+    ["an empty body", {}],
+    ["a reminder lead time", { reminder_minutes: 15 }],
+    ["a timezone", { timezone: "Pacific/Auckland" }],
+    ["a room name", { room_name: "Follow-up" }],
+    ["a practice type", { practice_type: "group" }],
+    ["a value equal to the stored one", { prospect_name: "Sam Prospect" }],
+  ];
+
+  for (const [name, body] of unchanged) {
+    test(`${name} bumps nothing and writes no calendar resource`, async () => {
+      scriptState(storedMeeting());
+
+      await updateMeetingRoom(ROOM_ID, body);
+
+      const written = statePut();
+      assert.equal(written.sequence, 4);
+      assert.equal(caldavCalls().length, 0);
+      // The preserved fields are untouched by the gate.
+      assert.equal(written.key_material, "ABCD");
+      assert.equal(written.reminder_sent, 1111);
+      assert.equal(written.reschedule_previous_start, 2222);
+      assert.equal(written.reschedule_notified, 3333);
+    });
+  }
+
+  const changed = [
+    ["scheduled_start", { scheduled_start: START + 3600000 }],
+    ["scheduled_end", { scheduled_end: END + 3600000 }],
+    ["organizer_name", { organizer_name: "Alexandra Organizer" }],
+    ["prospect_name", { prospect_name: "Samira Prospect" }],
+    ["organizer_email", { organizer_email: "alex@example.com" }],
+    ["prospect_email", { prospect_email: "sam@example.com" }],
+  ];
+
+  for (const [field, body] of changed) {
+    test(`a changed ${field} bumps once and writes once`, async () => {
+      scriptState(storedMeeting());
+
+      await updateMeetingRoom(ROOM_ID, body);
+
+      assert.equal(statePut().sequence, 5);
+      assert.deepEqual(
+        caldavCalls().map((call) => call.method),
+        ["PUT"],
+      );
+      assert.match(caldavCalls()[0].ics, /^SEQUENCE:5$/m);
+      assert.equal(statePut().key_material, "ABCD");
+    });
+  }
+
+  test("the join link is in the set, because it is written into the event", () => {
+    assert.deepEqual(ICS_AFFECTING_FIELDS, [
+      "scheduled_start",
+      "scheduled_end",
+      "organizer_name",
+      "prospect_name",
+      "organizer_email",
+      "prospect_email",
+      "meet_link",
+    ]);
+  });
+
+  // A reschedule always moves the start, so the chain that depends on the
+  // raised sequence reaching attendees is never caught by the gate.
+  test("a reschedule always bumps and always rewrites", async () => {
     scriptState(storedMeeting());
 
-    await updateMeetingRoom(ROOM_ID, { reminder_minutes: 15 });
+    await updateMeetingRoom(ROOM_ID, {
+      scheduled_start: START + 3600000,
+      scheduled_end: END + 3600000,
+      timezone: "Europe/Berlin",
+    });
 
-    assert.equal(statePut().sequence, 5);
+    const written = statePut();
+    assert.equal(written.sequence, 5);
+    assert.equal(written.reschedule_previous_start, START);
+    assert.equal("reschedule_notified" in written, false);
+    assert.equal("reminder_sent" in written, false);
     assert.equal(caldavCalls().length, 1);
   });
 
-  test("fence: an empty body still bumps the sequence and rewrites", async () => {
-    scriptState(storedMeeting());
+  test("a meeting with no stored sequence starts at one", async () => {
+    scriptState(storedMeeting({ sequence: undefined }));
 
-    await updateMeetingRoom(ROOM_ID, {});
+    await updateMeetingRoom(ROOM_ID, { scheduled_start: START + 3600000 });
 
-    assert.equal(statePut().sequence, 5);
-    assert.equal(caldavCalls().length, 1);
+    assert.equal(statePut().sequence, 1);
   });
 });
 
