@@ -1,0 +1,120 @@
+.grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpd-space-1x);
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.weekdays,
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--cpd-space-1x);
+}
+
+.week {
+  flex: 1;
+  min-block-size: 0;
+}
+
+.weekday {
+  text-align: center;
+  padding-block: var(--cpd-space-1x);
+  color: var(--cpd-color-text-secondary);
+  font-size: var(--cpd-font-size-body-sm);
+  user-select: none;
+}
+
+.weekday abbr {
+  text-decoration: none;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--cpd-space-1x);
+  min-block-size: var(--cpd-space-24x);
+  padding: var(--cpd-space-1x);
+  border-radius: var(--cpd-space-2x);
+  background-color: var(--cpd-color-bg-subtle-secondary);
+  color: var(--cpd-color-text-primary);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.day:focus-visible {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-border-width-1);
+}
+
+@media (hover: hover) {
+  .day:hover {
+    background-color: var(--cpd-color-bg-subtle-primary);
+  }
+}
+
+.dayNumber {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: var(--cpd-space-7x);
+  min-block-size: var(--cpd-space-7x);
+  border-radius: 50%;
+  font-size: var(--cpd-font-size-body-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.today .dayNumber {
+  background-color: var(--cpd-color-bg-action-primary-rest);
+  color: var(--cpd-color-text-on-solid-primary);
+  font-weight: var(--cpd-font-weight-semibold);
+}
+
+.selected {
+  background-color: var(--cpd-color-bg-accent-subtle);
+  box-shadow: inset 0 0 0 var(--cpd-border-width-1)
+    var(--cpd-color-border-interactive-primary);
+}
+
+.otherMonth {
+  background-color: transparent;
+  color: var(--cpd-color-text-disabled);
+}
+
+.more {
+  padding-inline: var(--cpd-space-2x);
+  color: var(--cpd-color-text-secondary);
+}
+
+/* Compact: the home card, where a day is a target and a busy marker. */
+.compact .day {
+  align-items: center;
+  justify-content: center;
+  min-block-size: var(--cpd-space-11x);
+  background-color: transparent;
+  position: relative;
+}
+
+.compact .dayNumber {
+  align-self: center;
+}
+
+.compact .selected {
+  background-color: var(--cpd-color-bg-accent-subtle);
+}
+
+.marker {
+  position: absolute;
+  inset-block-end: var(--cpd-space-1x);
+  inline-size: var(--cpd-space-1x);
+  block-size: var(--cpd-space-1x);
+  border-radius: 50%;
+  background-color: var(--cpd-color-icon-accent-primary);
+}
+
+.today .marker {
+  background-color: var(--cpd-color-icon-accent-primary);
+}

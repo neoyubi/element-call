@@ -1,0 +1,29 @@
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpd-space-6x);
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpd-space-1x);
+}
+
+.when {
+  color: var(--cpd-color-text-primary);
+}
+
+.note {
+  color: var(--cpd-color-text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cpd-space-2x);
+}
+
+.actions > * {
+  min-block-size: var(--cpd-space-11x);
+}

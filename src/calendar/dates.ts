@@ -1,13 +1,33 @@
 import { type TFunction } from "i18next";
 
+import { Config } from "../config/Config";
+import {
+  CALENDAR_DEFAULTS,
+  type FirstDayOfWeek,
+} from "../config/ConfigOptions";
+import { type ScheduledMeeting } from "../home/useScheduledMeetings";
+
 /**
- * Date arithmetic and formatting for the calendar and the meeting list.
+ * Date arithmetic, layout projection and formatting for the calendar and the
+ * meeting list.
  *
  * Every user-visible name, number and time comes from Intl keyed on the
  * application's language rather than the browser's, so a Dutch interface on an
  * English browser still reads in Dutch. Weekday and month names never come
  * from translation keys.
+ *
+ * Positions in the time grid are derived from local wall-clock fields and
+ * never from a difference of two instants: on the two days a year that are 23
+ * or 25 hours long, the two disagree by an hour.
  */
+
+export const CALENDAR_VIEWS = ["day", "week", "month", "agenda"] as const;
+
+export type CalendarView = (typeof CALENDAR_VIEWS)[number];
+
+export function isCalendarView(value: string | null): value is CalendarView {
+  return CALENDAR_VIEWS.includes(value as CalendarView);
+}
 
 // Intl formatters cost far more to construct than to use, and a month grid
 // needs one per cell, so they are kept keyed by language and option set.
@@ -46,6 +66,273 @@ export function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
+/** Local midnight on the day containing `date`. */
+export function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/** `date` moved by whole calendar days, keeping its time of day. */
+export function addDays(date: Date, days: number): Date {
+  const moved = new Date(date);
+  moved.setDate(moved.getDate() + days);
+  return moved;
+}
+
+/** Whole calendar days from `from` to `to`, unaffected by clock changes. */
+export function daysBetween(from: Date, to: Date): number {
+  const utc = (d: Date): number =>
+    Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((utc(to) - utc(from)) / 86400000);
+}
+
+const WEEKDAYS = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const;
+
+interface WeekInfo {
+  /** 1 = Monday through 7 = Sunday, as the locale data numbers weekdays. */
+  firstDay: number;
+}
+
+function localeWeekInfo(locale: Intl.Locale): WeekInfo | undefined {
+  // The proposal changed shape late: some engines shipped weekInfo as a
+  // property before getWeekInfo() was settled on, and some ship neither.
+  const candidate = locale as Intl.Locale & {
+    getWeekInfo?: () => WeekInfo;
+    weekInfo?: WeekInfo;
+  };
+  return typeof candidate.getWeekInfo === "function"
+    ? candidate.getWeekInfo()
+    : candidate.weekInfo;
+}
+
+/**
+ * The weekday a week starts on, as a Sunday-based index. "auto" asks the
+ * runtime's locale data and falls back to the ISO week where it has none.
+ */
+export function resolveFirstDayOfWeek(
+  setting: FirstDayOfWeek,
+  locale: string,
+): number {
+  if (setting !== "auto") return WEEKDAYS.indexOf(setting);
+  try {
+    const info = localeWeekInfo(new Intl.Locale(locale));
+    if (info) return info.firstDay % 7;
+  } catch {
+    // An unparseable language tag; the ISO week is the safer answer.
+  }
+  return 1;
+}
+
+/** The configured first day of the week, resolved for `locale`. */
+export function firstDayOfWeek(locale: string): number {
+  return resolveFirstDayOfWeek(
+    Config.get().calendar?.first_day_of_week ??
+      CALENDAR_DEFAULTS.first_day_of_week,
+    locale,
+  );
+}
+
+/**
+ * The hours the time grid highlights and scrolls to. The grid still renders
+ * the whole day, so a meeting outside them is never hidden.
+ */
+export function workingHours(): { start: number; end: number } {
+  const calendar = Config.get().calendar;
+  return {
+    start: calendar?.day_start_hour ?? CALENDAR_DEFAULTS.day_start_hour,
+    end: calendar?.day_end_hour ?? CALENDAR_DEFAULTS.day_end_hour,
+  };
+}
+
+/** The first day of the week containing `date`, at local midnight. */
+export function startOfWeek(date: Date, firstDay: number): Date {
+  const start = startOfDay(date);
+  return addDays(start, -((start.getDay() - firstDay + 7) % 7));
+}
+
+/** The seven days of the week containing `date`. */
+export function weekDays(date: Date, firstDay: number): Date[] {
+  const start = startOfWeek(date, firstDay);
+  return Array.from({ length: 7 }, (_, i) => addDays(start, i));
+}
+
+/**
+ * The days a month grid shows: whole weeks covering the month of `date`, and
+ * no more rows than that needs.
+ */
+export function monthGridDays(date: Date, firstDay: number): Date[] {
+  const start = startOfWeek(
+    new Date(date.getFullYear(), date.getMonth(), 1),
+    firstDay,
+  );
+  const last = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  const weeks = Math.ceil((daysBetween(start, last) + 1) / 7);
+  return Array.from({ length: weeks * 7 }, (_, i) => addDays(start, i));
+}
+
+/** The window a view covers, as local midnights with `end` exclusive. */
+export function viewRange(
+  view: CalendarView,
+  focusedDate: Date,
+  firstDay: number,
+): { start: Date; end: Date } {
+  switch (view) {
+    case "day": {
+      const start = startOfDay(focusedDate);
+      return { start, end: addDays(start, 1) };
+    }
+    case "week": {
+      const start = startOfWeek(focusedDate, firstDay);
+      return { start, end: addDays(start, 7) };
+    }
+    case "month": {
+      const days = monthGridDays(focusedDate, firstDay);
+      return { start: days[0], end: addDays(days[days.length - 1], 1) };
+    }
+    case "agenda":
+      return {
+        start: new Date(focusedDate.getFullYear(), focusedDate.getMonth(), 1),
+        end: new Date(focusedDate.getFullYear(), focusedDate.getMonth() + 1, 1),
+      };
+  }
+}
+
+/** Where the previous or next control lands, which differs per view. */
+export function stepDate(
+  view: CalendarView,
+  focusedDate: Date,
+  direction: 1 | -1,
+): Date {
+  switch (view) {
+    case "day":
+      return addDays(focusedDate, direction);
+    case "week":
+      return addDays(focusedDate, 7 * direction);
+    case "month":
+    case "agenda":
+      return new Date(
+        focusedDate.getFullYear(),
+        focusedDate.getMonth() + direction,
+        1,
+      );
+  }
+}
+
+/** The focused date as it appears in the URL. */
+export function toDateParam(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/** Reads a `YYYY-MM-DD` URL parameter as a local date. */
+export function fromDateParam(value: string | null): Date | undefined {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? "");
+  if (!match) return undefined;
+  const [, year, month, day] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  // Reject dates that only exist after rolling over, such as 2026-02-31.
+  return date.getMonth() === Number(month) - 1 ? date : undefined;
+}
+
+export const MINUTES_PER_DAY = 1440;
+
+/** A meeting placed in a day column, ready for a grid or a list. */
+export interface PositionedEvent {
+  meeting: ScheduledMeeting;
+  /** Days from the start of the window to the day the meeting starts on. */
+  dayIndex: number;
+  /** Minutes from that day's local midnight to the top edge. */
+  startMinute: number;
+  /** Minutes from that day's local midnight to the bottom edge. */
+  endMinute: number;
+  /** Which of the side-by-side columns this meeting occupies. */
+  column: number;
+  /** How many columns the overlapping meetings were split into. */
+  columnCount: number;
+  inProgress: boolean;
+}
+
+/**
+ * Places every meeting that starts inside the window into a day column, side
+ * by side with the ones it overlaps.
+ *
+ * A meeting running past midnight is clipped at the end of its own day rather
+ * than repeated in the next one: there is no multi-day lane, by design.
+ */
+export function visibleEvents(
+  meetings: readonly ScheduledMeeting[],
+  windowStart: Date,
+  windowEnd: Date,
+  now: number,
+): PositionedEvent[] {
+  const dayCount = daysBetween(windowStart, windowEnd);
+  const byDay: PositionedEvent[][] = Array.from({ length: dayCount }, () => []);
+
+  for (const meeting of meetings) {
+    const start = new Date(meeting.scheduledStart);
+    const dayIndex = daysBetween(windowStart, start);
+    if (dayIndex < 0 || dayIndex >= dayCount) continue;
+
+    const end = new Date(meeting.scheduledEnd);
+    byDay[dayIndex].push({
+      meeting,
+      dayIndex,
+      startMinute: start.getHours() * 60 + start.getMinutes(),
+      endMinute: isSameDay(start, end)
+        ? end.getHours() * 60 + end.getMinutes()
+        : MINUTES_PER_DAY,
+      column: 0,
+      columnCount: 1,
+      inProgress: meeting.scheduledStart <= now && now < meeting.scheduledEnd,
+    });
+  }
+
+  return byDay.flatMap(layOutDay);
+}
+
+/**
+ * Splits one day's meetings into columns: every run of meetings that overlaps
+ * transitively shares a run of columns, and each meeting takes the leftmost
+ * column that is free at its start.
+ */
+function layOutDay(events: PositionedEvent[]): PositionedEvent[] {
+  events.sort(
+    (a, b) => a.startMinute - b.startMinute || a.endMinute - b.endMinute,
+  );
+
+  let group: PositionedEvent[] = [];
+  let groupEnd = -1;
+
+  const closeGroup = (): void => {
+    if (group.length === 0) return;
+    const columnEnds: number[] = [];
+    for (const event of group) {
+      const free = columnEnds.findIndex((end) => end <= event.startMinute);
+      event.column = free === -1 ? columnEnds.length : free;
+      columnEnds[event.column] = event.endMinute;
+    }
+    for (const event of group) event.columnCount = columnEnds.length;
+    group = [];
+  };
+
+  for (const event of events) {
+    if (event.startMinute >= groupEnd) closeGroup();
+    group.push(event);
+    groupEnd = Math.max(groupEnd, event.endMinute);
+  }
+  closeGroup();
+
+  return events;
+}
+
 /** The time of day, in the locale's own clock convention. */
 export function formatTimeOfDay(locale: string, date: Date | number): string {
   return dateTimeFormat(locale, {
@@ -80,6 +367,15 @@ export function formatShortDate(locale: string, date: Date | number): string {
   return dateTimeFormat(locale, { day: "numeric", month: "short" }).format(
     date,
   );
+}
+
+/** A span of days, collapsed the way the locale writes one. */
+export function formatDateRange(locale: string, from: Date, to: Date): string {
+  return dateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).formatRange(from, to);
 }
 
 /** The label for one row of a time grid's hour gutter. */

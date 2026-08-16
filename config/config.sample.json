@@ -26,6 +26,9 @@
     "duration_options": [15, 30, 45, 60],
     "default_duration_minutes": 30,
     "reminder_options": [15, 30, 60, 120],
-    "default_reminder_minutes": 30
+    "default_reminder_minutes": 30,
+    "first_day_of_week": "auto",
+    "day_start_hour": 8,
+    "day_end_hour": 18
   }
 }

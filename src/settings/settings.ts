@@ -9,6 +9,7 @@ import { logger } from "matrix-js-sdk/lib/logger";
 import { BehaviorSubject } from "rxjs";
 
 import { PosthogAnalytics } from "../analytics/PosthogAnalytics";
+import { type CalendarView } from "../calendar/dates";
 import { type Behavior } from "../state/Behavior";
 import { useBehavior } from "../useBehavior";
 
@@ -127,6 +128,12 @@ export const alwaysShowIphoneEarpiece = new Setting<boolean>(
 export const showMeetingsCalendar = new Setting<boolean>(
   "show-meetings-calendar",
   true,
+);
+
+// null = never chosen, which resolves to the view that suits the viewport.
+export const calendarView = new Setting<CalendarView | null>(
+  "calendar-view",
+  null,
 );
 
 export enum MatrixRTCMode {

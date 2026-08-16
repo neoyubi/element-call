@@ -6,6 +6,17 @@ SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Element-Commercial
 Please see LICENSE in the repository root for full details.
 */
 
+/** Day a week starts on; "auto" follows the runtime's locale data. */
+export type FirstDayOfWeek =
+  | "auto"
+  | "sunday"
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday";
+
 export interface ConfigOptions {
   /**
    * The Posthog endpoint to which analytics data will be sent.
@@ -146,6 +157,15 @@ export interface ConfigOptions {
     reminder_options?: number[];
     /** Reminder lead time preselected in the scheduling form, in minutes. */
     default_reminder_minutes?: number;
+    /** Day the week starts on in the calendar grids. */
+    first_day_of_week?: FirstDayOfWeek;
+    /**
+     * Hours the time grid highlights as working time and scrolls to on
+     * opening. The grid still renders the whole day, so a meeting outside
+     * them is never hidden.
+     */
+    day_start_hour?: number;
+    day_end_hour?: number;
   };
 
   /**
@@ -242,6 +262,9 @@ export const CALENDAR_DEFAULTS = {
   default_duration_minutes: 30,
   reminder_options: [15, 30, 60, 120],
   default_reminder_minutes: 30,
+  first_day_of_week: "auto",
+  day_start_hour: 8,
+  day_end_hour: 18,
 } satisfies NonNullable<ConfigOptions["calendar"]>;
 
 // Overrides members from ConfigOptions that are always provided by the
