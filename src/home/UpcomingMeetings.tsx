@@ -12,6 +12,8 @@ import { type MatrixClient } from "matrix-js-sdk";
 import { useTranslation } from "react-i18next";
 import { Text, IconButton } from "@vector-im/compound-web";
 import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
   DeleteIcon,
   EditIcon,
 } from "@vector-im/compound-design-tokens/assets/web/icons";
@@ -29,12 +31,12 @@ import { useRoomEncryptionSystem } from "../e2ee/sharedKeyManagement";
 import { getRelativeRoomUrl } from "../utils/matrix";
 import { Config } from "../config/Config";
 import { CALENDAR_DEFAULTS } from "../config/ConfigOptions";
-import { formatRelativeStart, isSameDay } from "../calendar/dates";
+import { formatMonth, formatRelativeStart, isSameDay } from "../calendar/dates";
+import { MonthView } from "../calendar/MonthView";
 import { now$ } from "../calendar/now";
 import { useBehavior } from "../useBehavior";
 import { useCanSchedule } from "./useCanSchedule";
 import { parseStart, formatDate, formatTime } from "./dateFormat";
-import { MiniCalendar } from "./MiniCalendar";
 import styles from "./UpcomingMeetings.module.css";
 
 interface UpcomingMeetingsProps {
@@ -286,7 +288,7 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
 };
 
 export const UpcomingMeetings: FC<UpcomingMeetingsProps> = ({ client }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { meetings } = useScheduledMeetings(client);
   const canSchedule = useCanSchedule(client);
   const [showCalendar, setShowCalendar] = useSetting(showMeetingsCalendar);
@@ -296,6 +298,19 @@ export const UpcomingMeetings: FC<UpcomingMeetingsProps> = ({ client }) => {
   const toggleCalendar = useCallback(() => {
     setShowCalendar(!showCalendar);
   }, [showCalendar, setShowCalendar]);
+
+  const onSelectDay = useCallback((date: Date): void => {
+    setSelectedDate((current) =>
+      current !== null && isSameDay(current, date) ? null : date,
+    );
+  }, []);
+
+  const stepMonth = useCallback((months: number): void => {
+    setViewMonth(
+      (current) =>
+        new Date(current.getFullYear(), current.getMonth() + months, 1),
+    );
+  }, []);
 
   const filteredMeetings = useMemo(() => {
     if (!selectedDate) return meetings;
@@ -343,13 +358,39 @@ export const UpcomingMeetings: FC<UpcomingMeetingsProps> = ({ client }) => {
         </div>
         {showCalendar ? (
           <>
-            <MiniCalendar
-              meetings={meetings}
-              selectedDate={selectedDate}
-              onSelectDate={setSelectedDate}
-              viewMonth={viewMonth}
-              onChangeMonth={setViewMonth}
-            />
+            <div className={styles.calendar}>
+              <div className={styles.monthHeader}>
+                <Text size="sm" weight="semibold">
+                  {formatMonth(i18n.language, viewMonth)}
+                </Text>
+                <div className={styles.monthNav}>
+                  <IconButton
+                    size="var(--cpd-space-11x)"
+                    aria-label={t("calendar.previous")}
+                    onClick={() => stepMonth(-1)}
+                  >
+                    <ChevronLeftIcon />
+                  </IconButton>
+                  <IconButton
+                    size="var(--cpd-space-11x)"
+                    aria-label={t("calendar.next")}
+                    onClick={() => stepMonth(1)}
+                  >
+                    <ChevronRightIcon />
+                  </IconButton>
+                </div>
+              </div>
+              <MonthView
+                compact
+                focusedDate={viewMonth}
+                meetings={meetings}
+                selectedDate={selectedDate}
+                onSelectDay={onSelectDay}
+                onFocusDate={(date) =>
+                  setViewMonth(new Date(date.getFullYear(), date.getMonth(), 1))
+                }
+              />
+            </div>
             <div className={styles.meetingsList}>
               {filteredMeetings.map((meeting) => (
                 <MeetingTile
