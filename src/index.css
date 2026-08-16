@@ -56,6 +56,11 @@ layer(compound);
 :root,
 [class*="cpd-theme-"] {
   --video-tile-background: var(--cpd-color-bg-subtle-secondary);
+  /* One step further back than the calendar's sheet. Compound's grey ramp
+  runs in opposite directions in the two themes, so this cannot be a single
+  surface token; each theme names the value that reads as recessed. */
+  --calendar-surface: var(--cpd-color-bg-canvas-disabled);
+  --calendar-surface-recessed: var(--cpd-color-bg-subtle-secondary);
 }
 
 .cpd-theme-light,
@@ -67,6 +72,7 @@ layer(compound);
 'cpd-theme-dark' or 'cpd-theme-dark-hc', never both. */
 .cpd-theme-dark,
 .cpd-theme-dark-hc {
+  --calendar-surface-recessed: var(--cpd-color-bg-canvas-default);
   --cpd-color-border-accent: #4b94ff;
   --stopgap-color-on-solid-accent: var(--cpd-color-text-primary);
   --stopgap-background-85: rgba(16, 19, 23, 0.85);

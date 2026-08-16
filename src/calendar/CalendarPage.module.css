@@ -33,12 +33,18 @@
   min-inline-size: 0;
 }
 
+/* An opaque sheet. The page carries an animated gradient, and a grid this
+dense needs a substrate that does not move underneath it: contrast against a
+drifting background is not a value anything can be checked against. */
 .body {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-block-size: 0;
   overflow: hidden;
+  background-color: var(--calendar-surface);
+  border: var(--cpd-border-width-1) solid var(--cpd-color-border-disabled);
+  border-radius: var(--cpd-space-3x);
 }
 
 .status {

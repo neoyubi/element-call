@@ -13,7 +13,7 @@
   position: sticky;
   inset-block-start: 0;
   z-index: 1;
-  background-color: var(--cpd-color-bg-canvas-default);
+  background-color: var(--calendar-surface);
   display: grid;
   grid-template-columns: var(--cpd-space-16x) repeat(
       var(--calendar-day-count, 7),
@@ -109,8 +109,9 @@
     var(--cpd-color-border-disabled);
 }
 
+/* Recessed, not raised: the working day should be the brightest thing here. */
 .offHours {
-  background-color: var(--cpd-color-bg-subtle-secondary);
+  background-color: var(--calendar-surface-recessed);
 }
 
 .slotButton {
