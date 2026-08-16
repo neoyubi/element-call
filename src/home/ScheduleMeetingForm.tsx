@@ -150,7 +150,7 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
       return t("schedule_meeting.error_email");
     if (!date || !time) return t("schedule_meeting.error_required");
     const start = parseStart(date, time);
-    if (start === undefined) return t("schedule_meeting.error_date");
+    if (start === undefined) return t("schedule_meeting.error_required");
     if (start <= Date.now()) return t("schedule_meeting.error_past_date");
     return undefined;
   }, [inviteeName, inviteeEmail, organizerEmail, date, time, t]);
@@ -306,9 +306,8 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
             <InputField
               id="meetingDate"
               name="meetingDate"
-              type="text"
+              type="date"
               label={t("schedule_meeting.date")}
-              placeholder={t("schedule_meeting.date_format")}
               required
               autoComplete="off"
               value={date}

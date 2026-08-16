@@ -178,7 +178,7 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
 
       const start = parseStart(date, time);
       if (start === undefined) {
-        setEditError(t("schedule_meeting.error_date"));
+        setEditError(t("schedule_meeting.error_required"));
         return;
       }
       if (start <= Date.now()) {
@@ -296,10 +296,9 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
         <form className={styles.editRow} onSubmit={onSaveEdit}>
           <div className={styles.editFields}>
             <input
-              type="text"
+              type="date"
               className={styles.editInput}
               aria-label={t("schedule_meeting.date")}
-              placeholder={t("schedule_meeting.date_format")}
               value={date}
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 setDate(e.target.value)

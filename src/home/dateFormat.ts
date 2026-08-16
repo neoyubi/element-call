@@ -1,21 +1,22 @@
-// Shared date helpers for the scheduling forms. Both the create form and the
-// inline reschedule editor use the same "dd.mm.YYYY" convention; keeping the
-// parsing and formatting in one module stops the two from drifting apart.
+// Parsing and formatting for the scheduling form's own inputs.
+//
+// A date input exchanges "YYYY-MM-DD" and a time input "HH:MM" whatever order
+// the browser presents the fields in, so nothing here assumes a written date
+// format. Anything a person reads is formatted in ../calendar/dates.
 
-// Date entered as "dd.mm.YYYY".
-const DATE_REGEX = /^(\d{2})\.(\d{2})\.(\d{4})$/;
+const DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-// Parse "dd.mm.YYYY" + "HH:MM" into an epoch-ms instant in local time.
-// Returns undefined when the input is malformed or not a real calendar date
-// (e.g. "40.13.2026" or a day that rolled over into the next month).
+// Parse a date input's value plus a time input's value into an epoch-ms
+// instant in local time. Returns undefined when either is empty or the date is
+// not a real one (e.g. "2026-02-31", which would otherwise roll over).
 export function parseStart(
   dateStr: string,
   timeStr: string,
 ): number | undefined {
   const match = DATE_REGEX.exec(dateStr.trim());
   if (!match || !timeStr) return undefined;
-  const [, dd, mm, yyyy] = match;
-  const ms = new Date(`${yyyy}-${mm}-${dd}T${timeStr}`).getTime();
+  const [, , mm, dd] = match;
+  const ms = new Date(`${dateStr}T${timeStr}`).getTime();
   if (Number.isNaN(ms)) return undefined;
   const parsed = new Date(ms);
   if (parsed.getMonth() + 1 !== Number(mm) || parsed.getDate() !== Number(dd))
@@ -23,17 +24,15 @@ export function parseStart(
   return ms;
 }
 
-// Format an epoch-ms instant as "dd.mm.YYYY" in local time (the inverse of
-// parseStart's date part).
+// Format an epoch-ms instant for an <input type="date">, in local time.
 export function formatDate(ms: number): string {
   const d = new Date(ms);
-  const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}.${mm}.${d.getFullYear()}`;
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
-// Format an epoch-ms instant as "HH:MM" in local time, suitable for
-// prefilling an <input type="time">.
+// Format an epoch-ms instant for an <input type="time">, in local time.
 export function formatTime(ms: number): string {
   const d = new Date(ms);
   const hh = String(d.getHours()).padStart(2, "0");
