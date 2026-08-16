@@ -9,6 +9,7 @@ import { expect, test, afterEach } from "vitest";
 import { render } from "@testing-library/react";
 import { type ReactNode, useState } from "react";
 import userEvent from "@testing-library/user-event";
+import { axe } from "vitest-axe";
 
 import { Modal } from "./Modal";
 
@@ -69,4 +70,25 @@ test("the modal renders as a drawer in mobile viewports", () => {
     </Modal>,
   );
   expect(queryByRole("dialog")).toMatchSnapshot();
+});
+
+test("the drawer is accessible", async () => {
+  window.matchMedia = function (query): MediaQueryList {
+    return {
+      matches: query.includes("pointer: coarse"),
+      addEventListener(): MediaQueryList {
+        return this as MediaQueryList;
+      },
+      removeEventListener(): MediaQueryList {
+        return this as MediaQueryList;
+      },
+    } as unknown as MediaQueryList;
+  };
+
+  const { getByRole } = render(
+    <Modal title="My modal" open={true} onDismiss={(): void => {}}>
+      <p>This is the content.</p>
+    </Modal>,
+  );
+  expect(await axe(getByRole("dialog"))).toHaveNoViolations();
 });
