@@ -140,3 +140,78 @@
   background-color: var(--cpd-color-icon-critical-primary);
   pointer-events: none;
 }
+
+/* While a meeting is being dragged out, the grid stops responding to the
+   pointer travelling over it: no text gets selected, and the slots underneath
+   the block do not light up one after another as it passes. */
+.dragging {
+  user-select: none;
+}
+
+.dragging .slotButton {
+  cursor: ns-resize;
+}
+
+@media (hover: hover) {
+  .dragging .slotButton:hover {
+    background-color: transparent;
+  }
+}
+
+/* Placed with a transform and sized in pixels rather than with the percentage
+   insets the meetings use: this is the one box in the grid that moves every
+   frame, and it is out of flow, so neither moving nor resizing it disturbs
+   anything else. */
+.dragBlock {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  z-index: 2;
+  border-radius: var(--cpd-space-1x);
+  background-color: var(--cpd-color-bg-accent-selected);
+  border: var(--cpd-border-width-1) solid var(--cpd-color-border-accent-subtle);
+  pointer-events: none;
+  will-change: transform;
+  animation: drag-block-appear 100ms ease-out;
+}
+
+@keyframes drag-block-appear {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The label rides the centre of the block and is never clipped by it: at the
+   shortest length the block is a few pixels tall, and the whole point of the
+   gesture is being able to read what you are about to book. */
+.dragLabel {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: var(--cpd-space-1x);
+  white-space: nowrap;
+  padding-block: var(--cpd-space-1x);
+  padding-inline: var(--cpd-space-3x);
+  border-radius: var(--cpd-space-6x);
+  background-color: var(--cpd-color-bg-action-primary-rest);
+  color: var(--cpd-color-text-on-solid-primary);
+  font-size: var(--cpd-font-size-body-sm);
+  font-weight: var(--cpd-font-weight-medium);
+  /* Without this the label jitters sideways as the minutes tick over. */
+  font-variant-numeric: tabular-nums;
+}
+
+.dragIcon {
+  inline-size: var(--cpd-space-4x);
+  block-size: var(--cpd-space-4x);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dragBlock {
+    animation: none;
+  }
+}
