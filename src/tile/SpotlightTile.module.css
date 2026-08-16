@@ -94,9 +94,9 @@ Please see LICENSE in the repository root for full details.
     opacity 0.15s,
     background-color 0.1s;
   z-index: 1;
-  --inset: 6px;
-  inset-block-end: var(--inset);
-  inset-inline-end: var(--inset);
+  /* Matching .bottomRightButtons, which shares this corner */
+  inset-block-end: var(--cpd-space-1x);
+  inset-inline-end: var(--cpd-space-1x);
 }
 
 .bottomRightButtons {
@@ -133,6 +133,15 @@ Please see LICENSE in the repository root for full details.
   opacity: 1;
 }
 
+/* Neither of the reveals above can fire without hover, and a transparent
+button is still hit-testable, so show them. */
+@media (hover: none) {
+  .advance,
+  .expand {
+    opacity: 1;
+  }
+}
+
 .indicators {
   display: flex;
   gap: var(--cpd-space-2x);
@@ -166,4 +175,13 @@ Please see LICENSE in the repository root for full details.
 
 .indicators > .item[data-visible="true"] {
   background: var(--cpd-color-gray-1400);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .advance,
+  .expand,
+  .indicators,
+  .indicators > .item {
+    transition-duration: 0s;
+  }
 }

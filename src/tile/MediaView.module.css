@@ -173,6 +173,14 @@ unconditionally select the container so we can use cqmin units */
   }
 }
 
+/* Nothing can reveal the button without hover, and a transparent button is
+still hit-testable, so show it. */
+@media (hover: none) {
+  .fg > button {
+    opacity: 1;
+  }
+}
+
 .fg > button:active {
   background: var(--cpd-color-bg-action-primary-pressed);
 }
@@ -188,4 +196,10 @@ unconditionally select the container so we can use cqmin units */
 
 .fg > button:first-of-type {
   grid-area: button;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fg > button {
+    transition-duration: 0s;
+  }
 }
