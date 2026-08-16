@@ -3,9 +3,40 @@
 A customizable fork of [element-hq/element-call](https://github.com/element-hq/element-call)
 on the `livekit` (MatrixRTC + LiveKit) branch.
 
-Licensed under [AGPL-3.0](LICENSE-AGPL-3.0). The upstream commercial
-license offer at `LICENSE-COMMERCIAL` belongs to Element / New Vector
-Ltd. and applies to upstream code only.
+## Copyright, license and attribution
+
+Copyright 2021-2025 New Vector Ltd
+
+Copyright 2026 Marwand Ayubi
+
+Modified fork of element-hq/element-call, maintained since 2026.
+
+This software is dual-licensed by New Vector Ltd (Element). It can be used
+either:
+
+(1) for free under the terms of the GNU Affero General Public License (as
+published by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version); OR
+
+(2) under the terms of a paid-for Element Commercial License agreement between
+you and Element (the terms of which may vary depending on what you and Element
+have agreed to). Unless required by applicable law or agreed to in writing,
+software distributed under the Licenses is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+Licenses for the specific language governing permissions and limitations under
+the Licenses.
+
+This fork is distributed under [AGPL-3.0](LICENSE-AGPL-3.0). The commercial
+license offer at `LICENSE-COMMERCIAL` belongs to Element / New Vector Ltd and
+applies to upstream code only.
+
+Upstream Element Call copyright and license headers are preserved on the files
+this fork did not author. New files added here carry no copyright header and are
+licensed under AGPL-3.0 by virtue of being part of this combined work.
+
+Not affiliated with, endorsed by, or supported by Element. Element and Element
+Call are trademarks of Element Creations Ltd. Matrix is a trademark of The
+Matrix.org Foundation C.I.C.
 
 ## What this fork adds
 
@@ -218,7 +249,4 @@ you must offer them the corresponding source. The Source link in the
 in-app license footer is driven by `branding.source_code_url`; set it
 to your public fork before deploying.
 
-Upstream Element Call copyright and license headers are preserved on
-the files we did not author. New files we added carry no copyright
-header and are licensed under AGPL-3.0 by virtue of being part of this
-combined work.
+Copyright and attribution are covered at the top of this file.
