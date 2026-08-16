@@ -127,14 +127,18 @@ export const alwaysShowIphoneEarpiece = new Setting<boolean>(
 
 // Whether the scheduling form's extra options are expanded. Someone who always
 // wants them should not be charged a click every time.
+// Whether the home page's list of later meetings is expanded. The list is the
+// point of the page, so it starts open; recent calls do not, so they do not.
+export const homeUpcomingOpen = new Setting<boolean>(
+  "home-upcoming-open",
+  true,
+);
+
+export const homeRecentOpen = new Setting<boolean>("home-recent-open", false);
+
 export const scheduleAdvancedOpen = new Setting<boolean>(
   "schedule-advanced-open",
   false,
-);
-
-export const showMeetingsCalendar = new Setting<boolean>(
-  "show-meetings-calendar",
-  true,
 );
 
 // null = never chosen, which resolves to the view that suits the viewport.

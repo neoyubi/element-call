@@ -20,6 +20,9 @@ import { logger } from "matrix-js-sdk/lib/logger";
 import { Button } from "@vector-im/compound-web";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { CalendarIcon } from "@vector-im/compound-design-tokens/assets/web/icons";
+import { Separator } from "@vector-im/compound-web";
+import AddIcon from "@vector-im/compound-design-tokens/assets/web/icons/plus";
+import ChevronDownIcon from "@vector-im/compound-design-tokens/assets/web/icons/chevron-down";
 
 import {
   createRoom,
@@ -34,14 +37,21 @@ import guestStyles from "./UnauthenticatedView.module.css";
 import { FieldRow, InputField, ErrorMessage } from "../input/Input";
 import { CallList } from "./CallList";
 import { UpcomingMeetings } from "./UpcomingMeetings";
+import { NextUp } from "./NextUp";
 import { ScheduleMeetingForm } from "./ScheduleMeetingForm";
 import { useCanSchedule } from "./useCanSchedule";
+import { useScheduledMeetings } from "./useScheduledMeetings";
+import { Modal } from "../Modal";
 import { UserMenuContainer } from "../UserMenuContainer";
 import { JoinExistingCallModal } from "./JoinExistingCallModal";
 import { Form } from "../form/Form";
 import { AnalyticsNotice } from "../analytics/AnalyticsNotice";
 import { E2eeType } from "../e2ee/e2eeType";
-import { useOptInAnalytics } from "../settings/settings";
+import {
+  useOptInAnalytics,
+  useSetting,
+  homeRecentOpen,
+} from "../settings/settings";
 import { useUrlParams } from "../UrlParams";
 import { CodeInput } from "./CodeInput";
 import { parseRotatingCode, deriveSharedKey } from "../e2ee/deriveKeyFromCode";
@@ -57,6 +67,9 @@ interface Props {
 
 export const RegisteredView: FC<Props> = ({ client, isPasswordlessUser }) => {
   const { header } = useUrlParams();
+  const { meetings, loading: meetingsLoading } = useScheduledMeetings(client);
+  const [scheduling, setScheduling] = useState(false);
+  const [recentOpen, setRecentOpen] = useSetting(homeRecentOpen);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error>();
   const [optInAnalytics] = useOptInAnalytics();
@@ -206,133 +219,196 @@ export const RegisteredView: FC<Props> = ({ client, isPasswordlessUser }) => {
           </Header>
         )}
         <main className={commonStyles.main}>
-          <HeaderLogo className={commonStyles.logo} />
-          {isPasswordlessUser ? (
-            <>
-              <Heading size="lg" weight="semibold">
-                {t("landing.heading", {
-                  brand: productName(),
-                })}
-              </Heading>
-              <div className={guestStyles.tabs}>
-                <button
-                  type="button"
-                  className={`${guestStyles.tab} ${activeTab === "code" ? guestStyles.activeTab : ""}`}
-                  onClick={() => setActiveTab("code")}
-                >
-                  {t("landing.tab_code")}
-                </button>
-                <button
-                  type="button"
-                  className={`${guestStyles.tab} ${activeTab === "link" ? guestStyles.activeTab : ""}`}
-                  onClick={() => setActiveTab("link")}
-                >
-                  {t("landing.tab_link")}
-                </button>
-              </div>
-              <Form className={guestStyles.form} onSubmit={onJoinSubmit}>
-                {activeTab === "code" ? (
-                  <CodeInput
-                    value={codeValue}
-                    onChange={onCodeChange}
-                    disabled={joinDeriving}
-                  />
-                ) : (
-                  <FieldRow>
-                    <InputField
-                      id="meetingLink"
-                      name="meetingLink"
-                      label={t("landing.join_link_placeholder")}
-                      placeholder={t("landing.join_link_placeholder")}
-                      type="url"
-                      autoComplete="off"
-                      value={linkValue}
-                      onChange={onLinkChange}
-                      data-testid="home_meetingLink"
+          <div className={styles.column}>
+            <HeaderLogo className={commonStyles.logo} />
+            {isPasswordlessUser ? (
+              <>
+                <Heading size="lg" weight="semibold">
+                  {t("landing.heading", {
+                    brand: productName(),
+                  })}
+                </Heading>
+                <div className={guestStyles.tabs}>
+                  <button
+                    type="button"
+                    className={`${guestStyles.tab} ${activeTab === "code" ? guestStyles.activeTab : ""}`}
+                    onClick={() => setActiveTab("code")}
+                  >
+                    {t("landing.tab_code")}
+                  </button>
+                  <button
+                    type="button"
+                    className={`${guestStyles.tab} ${activeTab === "link" ? guestStyles.activeTab : ""}`}
+                    onClick={() => setActiveTab("link")}
+                  >
+                    {t("landing.tab_link")}
+                  </button>
+                </div>
+                <Form className={guestStyles.form} onSubmit={onJoinSubmit}>
+                  {activeTab === "code" ? (
+                    <CodeInput
+                      value={codeValue}
+                      onChange={onCodeChange}
+                      disabled={joinDeriving}
                     />
-                  </FieldRow>
-                )}
-                {joinError && (
-                  <FieldRow>
-                    <ErrorMessage error={joinError} />
-                  </FieldRow>
-                )}
-                <Button
-                  type="submit"
-                  size="lg"
-                  disabled={
-                    joinDeriving ||
-                    (activeTab === "code" ? !joinCodeValid : !linkValue.trim())
-                  }
-                  data-testid="home_join"
-                >
-                  {joinDeriving
-                    ? t("common.loading")
-                    : t("landing.join_button")}
-                </Button>
-              </Form>
-            </>
-          ) : (
-            <>
-              <Heading size="lg" weight="semibold">
-                {t("start_new_call")}
-              </Heading>
-              <Form className={styles.form} onSubmit={onSubmit}>
-                <FieldRow className={styles.fieldRow}>
-                  <InputField
-                    id="callName"
-                    name="callName"
-                    label={t("call_name")}
-                    placeholder={t("call_name")}
-                    type="text"
-                    required
-                    autoComplete="off"
-                    data-testid="home_callName"
-                  />
+                  ) : (
+                    <FieldRow>
+                      <InputField
+                        id="meetingLink"
+                        name="meetingLink"
+                        label={t("landing.join_link_placeholder")}
+                        placeholder={t("landing.join_link_placeholder")}
+                        type="url"
+                        autoComplete="off"
+                        value={linkValue}
+                        onChange={onLinkChange}
+                        data-testid="home_meetingLink"
+                      />
+                    </FieldRow>
+                  )}
+                  {joinError && (
+                    <FieldRow>
+                      <ErrorMessage error={joinError} />
+                    </FieldRow>
+                  )}
                   <Button
                     type="submit"
                     size="lg"
-                    className={styles.button}
-                    disabled={loading}
-                    data-testid="home_go"
+                    disabled={
+                      joinDeriving ||
+                      (activeTab === "code"
+                        ? !joinCodeValid
+                        : !linkValue.trim())
+                    }
+                    data-testid="home_join"
                   >
-                    {loading ? t("common.loading") : t("action.go")}
+                    {joinDeriving
+                      ? t("common.loading")
+                      : t("landing.join_button")}
                   </Button>
-                </FieldRow>
-                {optInAnalytics === null && (
-                  <Text size="sm" className={styles.notice}>
-                    <AnalyticsNotice />
-                  </Text>
+                </Form>
+              </>
+            ) : (
+              <>
+                {canSchedule && (
+                  <>
+                    <NextUp meetings={meetings} loading={meetingsLoading} />
+                    <Button
+                      size="lg"
+                      Icon={AddIcon}
+                      className={styles.scheduleCta}
+                      onClick={() => setScheduling(true)}
+                    >
+                      {t("home.schedule_cta")}
+                    </Button>
+                    <div className={styles.separator}>
+                      <Separator />
+                      <Text size="sm" className={styles.separatorLabel}>
+                        {t("home.or_instant_call")}
+                      </Text>
+                      <Separator />
+                    </div>
+                  </>
                 )}
-                {error && (
+                {!canSchedule && (
+                  <Heading size="lg" weight="semibold">
+                    {t("start_new_call")}
+                  </Heading>
+                )}
+                <Form className={styles.form} onSubmit={onSubmit}>
                   <FieldRow className={styles.fieldRow}>
-                    <ErrorMessage error={error} />
+                    <InputField
+                      id="callName"
+                      name="callName"
+                      label={t("call_name")}
+                      placeholder={t("call_name")}
+                      type="text"
+                      required
+                      autoComplete="off"
+                      data-testid="home_callName"
+                    />
+                    <Button
+                      type="submit"
+                      size="lg"
+                      className={styles.button}
+                      disabled={loading}
+                      data-testid="home_go"
+                    >
+                      {loading ? t("common.loading") : t("action.go")}
+                    </Button>
                   </FieldRow>
-                )}
-              </Form>
-              {canSchedule && <ScheduleMeetingForm client={client} />}
-              {/* A widget has no way to route anywhere but the call it was
-                  opened for, so the calendar is a standalone affordance. */}
-              {!widget && (
-                <Button
-                  as={RouterLink}
-                  to="/calendar"
-                  kind="secondary"
-                  size="lg"
-                  Icon={CalendarIcon}
-                  className={styles.calendarLink}
+                  {optInAnalytics === null && (
+                    <Text size="sm" className={styles.notice}>
+                      <AnalyticsNotice />
+                    </Text>
+                  )}
+                  {error && (
+                    <FieldRow className={styles.fieldRow}>
+                      <ErrorMessage error={error} />
+                    </FieldRow>
+                  )}
+                </Form>
+              </>
+            )}
+
+            <UpcomingMeetings
+              client={client}
+              meetings={meetings}
+              featured={meetings.find((m) => Date.now() < m.scheduledEnd)}
+            />
+
+            {recentRooms.length > 0 && (
+              <section className={styles.section}>
+                <button
+                  type="button"
+                  className={styles.sectionTrigger}
+                  aria-expanded={recentOpen}
+                  aria-controls="home-recent"
+                  onClick={() => setRecentOpen(!recentOpen)}
                 >
-                  {t("calendar.open")}
-                </Button>
-              )}
-            </>
-          )}
-          <UpcomingMeetings client={client} />
-          {recentRooms.length > 0 && (
-            <CallList rooms={recentRooms} client={client} />
-          )}
+                  <ChevronDownIcon
+                    width={16}
+                    height={16}
+                    className={
+                      recentOpen ? styles.triggerIconOpen : styles.triggerIcon
+                    }
+                  />
+                  <Text as="h2" size="sm" weight="semibold">
+                    {t("home.recent_calls", { count: recentRooms.length })}
+                  </Text>
+                </button>
+                {recentOpen && (
+                  <div id="home-recent">
+                    <CallList rooms={recentRooms} client={client} />
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* A widget has no way to route anywhere but the call it was
+              opened for, so the calendar is a standalone affordance. */}
+            {!widget && (
+              <RouterLink to="/calendar" className={styles.calendarLink}>
+                <CalendarIcon width={20} height={20} aria-hidden />
+                {t("calendar.open")}
+              </RouterLink>
+            )}
+          </div>
         </main>
       </div>
+
+      <Modal
+        title={t("schedule_meeting.title")}
+        hideHeader
+        open={scheduling}
+        onDismiss={() => setScheduling(false)}
+      >
+        <ScheduleMeetingForm
+          client={client}
+          onDone={() => setScheduling(false)}
+        />
+      </Modal>
+
       <JoinExistingCallModal
         onJoin={onJoinExistingRoom}
         open={joinExistingCallModalOpen}

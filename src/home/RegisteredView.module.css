@@ -8,9 +8,8 @@ Please see LICENSE in the repository root for full details.
 .form {
   justify-content: center;
   inline-size: 100%;
-  max-inline-size: 409px;
+  max-inline-size: 400px;
   padding-inline: var(--cpd-space-6x);
-  margin-block-end: var(--cpd-space-16x);
   box-sizing: border-box;
 }
 
@@ -35,5 +34,85 @@ Please see LICENSE in the repository root for full details.
 }
 
 .calendarLink {
-  margin-block-end: var(--cpd-space-6x);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cpd-space-2x);
+  align-self: flex-start;
+  color: var(--cpd-color-text-secondary);
+  font: var(--cpd-font-body-sm-medium);
+  text-decoration: none;
+}
+
+.calendarLink:hover {
+  color: var(--cpd-color-text-primary);
+  text-decoration: underline;
+}
+
+/* One column, one left edge. Three different widths stacked and centred is
+what made the page read as unrelated boxes. */
+.column {
+  inline-size: 100%;
+  max-inline-size: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--cpd-space-8x);
+  padding-inline: var(--cpd-space-4x);
+  box-sizing: border-box;
+}
+
+.scheduleCta {
+  inline-size: 100%;
+}
+
+.separator {
+  display: flex;
+  align-items: center;
+  gap: var(--cpd-space-3x);
+}
+
+.separatorLabel {
+  color: var(--cpd-color-text-secondary);
+  white-space: nowrap;
+}
+
+.section {
+  inline-size: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpd-space-2x);
+}
+
+.sectionTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--cpd-space-1x);
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--cpd-color-text-secondary);
+  cursor: pointer;
+}
+
+.sectionTrigger:focus-visible {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-border-width-1);
+  border-radius: var(--cpd-space-1x);
+}
+
+.triggerIcon {
+  transition: transform 0.15s;
+  transform: rotate(-90deg);
+}
+
+.triggerIconOpen {
+  composes: triggerIcon;
+  transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .triggerIcon {
+    transition: none;
+  }
 }
