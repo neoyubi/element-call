@@ -1,8 +1,19 @@
-import { type CSSProperties, type FC, useEffect, useMemo, useRef } from "react";
+import {
+  type CSSProperties,
+  type FC,
+  type MouseEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { useTranslation } from "react-i18next";
-import { Text } from "@vector-im/compound-web";
+import { IconButton, Text } from "@vector-im/compound-web";
+import { PlusIcon } from "@vector-im/compound-design-tokens/assets/web/icons";
 import classNames from "classnames";
 
+import { Config } from "../config/Config";
+import { CALENDAR_DEFAULTS } from "../config/ConfigOptions";
 import { type ScheduledMeeting } from "../home/useScheduledMeetings";
 import { useMediaQuery } from "../useMediaQuery";
 import { useBehavior } from "../useBehavior";
@@ -40,8 +51,11 @@ interface Props {
   /** The day a narrow viewport falls back to. */
   focusedDate: Date;
   meetings: readonly ScheduledMeeting[];
+  /** Whether this user may open the scheduling form from a free slot. */
+  canSchedule: boolean;
   onSelectDay: (date: Date) => void;
   onSelectMeeting: (meeting: ScheduledMeeting) => void;
+  onSelectSlot: (start: Date) => void;
 }
 
 /**
@@ -52,13 +66,21 @@ export const WeekView: FC<Props> = ({
   days,
   focusedDate,
   meetings,
+  canSchedule,
   onSelectDay,
   onSelectMeeting,
+  onSelectSlot,
 }) => {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const now = useBehavior(now$);
   const narrow = useMediaQuery(NARROW_VIEWPORT);
   const hours = workingHours();
+  // Clicking inside an hour picks a start time to the nearest meeting length
+  // on offer, so the granularity follows whatever a deployment offers.
+  const slotMinutes = Math.min(
+    ...(Config.get().calendar?.duration_options ??
+      CALENDAR_DEFAULTS.duration_options),
+  );
 
   const columns = useMemo(
     () => (narrow ? [startOfDay(focusedDate)] : days.map(startOfDay)),
@@ -89,6 +111,27 @@ export const WeekView: FC<Props> = ({
     scroller.scrollTop = (scroller.scrollHeight * dayStart) / 24;
   }, [dayStart]);
 
+  const onSlotClick = useCallback(
+    (day: Date, hour: number, e: MouseEvent<HTMLButtonElement>): void => {
+      const box = e.currentTarget.getBoundingClientRect();
+      // Keyboard activation reports no coordinates, which lands on the hour.
+      const offset = box.height > 0 ? (e.clientY - box.top) / box.height : 0;
+      const minute =
+        Math.floor(Math.min(Math.max(offset, 0), 1) * (60 / slotMinutes)) *
+        slotMinutes;
+      onSelectSlot(
+        new Date(
+          day.getFullYear(),
+          day.getMonth(),
+          day.getDate(),
+          hour,
+          minute,
+        ),
+      );
+    },
+    [onSelectSlot, slotMinutes],
+  );
+
   const today = new Date(now);
   const nowMinute = today.getHours() * 60 + today.getMinutes();
 
@@ -116,6 +159,26 @@ export const WeekView: FC<Props> = ({
                 {formatDayOfMonth(i18n.language, day)}
               </Text>
             </button>
+            {canSchedule && (
+              <IconButton
+                size="var(--cpd-space-11x)"
+                aria-label={t("calendar.schedule_on", {
+                  date: formatDay(i18n.language, day),
+                })}
+                onClick={() =>
+                  onSelectSlot(
+                    new Date(
+                      day.getFullYear(),
+                      day.getMonth(),
+                      day.getDate(),
+                      hours.start,
+                    ),
+                  )
+                }
+              >
+                <PlusIcon />
+              </IconButton>
+            )}
           </div>
         ))}
       </div>
@@ -135,7 +198,23 @@ export const WeekView: FC<Props> = ({
                 className={classNames(styles.slot, {
                   [styles.offHours]: hour < hours.start || hour >= hours.end,
                 })}
-              />
+              >
+                {canSchedule && (
+                  <button
+                    type="button"
+                    className={styles.slotButton}
+                    // Twenty-four tab stops per day would bury every other
+                    // control, so the button in the day header is the keyboard
+                    // route to the same form.
+                    tabIndex={-1}
+                    aria-label={t("calendar.schedule_at", {
+                      date: formatDay(i18n.language, day),
+                      time: formatHour(i18n.language, hour),
+                    })}
+                    onClick={(e) => onSlotClick(day, hour, e)}
+                  />
+                )}
+              </div>
             ))}
             {isSameDay(day, today) && (
               <div

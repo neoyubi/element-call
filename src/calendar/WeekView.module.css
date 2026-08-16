@@ -109,6 +109,25 @@
   background-color: var(--cpd-color-bg-subtle-secondary);
 }
 
+.slotButton {
+  inline-size: 100%;
+  block-size: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.slotButton:focus-visible {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: calc(-1 * var(--cpd-border-width-2));
+}
+
+@media (hover: hover) {
+  .slotButton:hover {
+    background-color: var(--cpd-color-bg-accent-subtle);
+  }
+}
+
 .nowLine {
   position: absolute;
   inset-inline: 0;

@@ -15,6 +15,7 @@ import {
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  PlusIcon,
 } from "@vector-im/compound-design-tokens/assets/web/icons";
 
 import { useClientState } from "../ClientContext";
@@ -31,6 +32,8 @@ import {
   useScheduledMeetings,
   type ScheduledMeeting,
 } from "../home/useScheduledMeetings";
+import { formatDate, formatTime } from "../home/dateFormat";
+import { ScheduleMeetingForm } from "../home/ScheduleMeetingForm";
 import { useCanSchedule } from "../home/useCanSchedule";
 import { useSetting, calendarView } from "../settings/settings";
 import { AgendaView } from "./AgendaView";
@@ -53,6 +56,7 @@ import {
   toDateParam,
   viewRange,
   weekDays,
+  workingHours,
 } from "./dates";
 import styles from "./CalendarPage.module.css";
 
@@ -91,6 +95,7 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
   const narrow = useMediaQuery(NARROW_VIEWPORT);
   const [preferredView, setPreferredView] = useSetting(calendarView);
   const [selected, setSelected] = useState<ScheduledMeeting | null>(null);
+  const [slot, setSlot] = useState<Date | null>(null);
 
   // The URL owns the view and the focused date, so the back button works and
   // a link restores exactly what the sender was looking at.
@@ -195,6 +200,24 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
               {label}
             </Heading>
           </div>
+          {canSchedule && (
+            <Button
+              size="sm"
+              Icon={PlusIcon}
+              onClick={() =>
+                setSlot(
+                  new Date(
+                    focusedDate.getFullYear(),
+                    focusedDate.getMonth(),
+                    focusedDate.getDate(),
+                    workingHours().start,
+                  ),
+                )
+              }
+            >
+              {t("schedule_meeting.title")}
+            </Button>
+          )}
           <NavBar aria-label={t("calendar.title")}>
             {CALENDAR_VIEWS.map((candidate) => (
               <NavItem
@@ -233,8 +256,10 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
                 }
                 focusedDate={focusedDate}
                 meetings={meetings}
+                canSchedule={canSchedule}
                 onSelectDay={onSelectDay}
                 onSelectMeeting={setSelected}
+                onSelectSlot={setSlot}
               />
             )}
             {view === "agenda" && (
@@ -260,6 +285,22 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
             client={client}
             canModify={canSchedule}
             onDone={() => setSelected(null)}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        title={t("schedule_meeting.title")}
+        hideHeader
+        open={slot !== null}
+        onDismiss={() => setSlot(null)}
+      >
+        {slot !== null && (
+          <ScheduleMeetingForm
+            key={slot.getTime()}
+            client={client}
+            initialDate={formatDate(slot.getTime())}
+            initialTime={formatTime(slot.getTime())}
           />
         )}
       </Modal>

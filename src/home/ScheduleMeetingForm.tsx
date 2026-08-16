@@ -22,6 +22,12 @@ import styles from "./ScheduleMeetingForm.module.css";
 
 interface Props {
   client: MatrixClient;
+  /** Prefill for the date field, as an <input type="date"> value. */
+  initialDate?: string;
+  /** Prefill for the time field, as an <input type="time"> value. */
+  initialTime?: string;
+  /** Meeting length to preselect, in minutes. */
+  initialDurationMinutes?: number;
 }
 
 // Mirrors the HTML5 email input semantics: a non-empty local part, an "@",
@@ -61,7 +67,17 @@ interface SuccessResult {
   meetLink: string;
 }
 
-export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
+/**
+ * The prefills are read once, when the form mounts. Opening the form on a
+ * different slot remounts it rather than pushing new values into fields
+ * someone may already be typing in.
+ */
+export const ScheduleMeetingForm: FC<Props> = ({
+  client,
+  initialDate,
+  initialTime,
+  initialDurationMinutes,
+}) => {
   const { t } = useTranslation();
   const calendar = Config.get().calendar;
   const durationOptions =
@@ -75,10 +91,11 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
   // True when the organizer email was derived from the logged-in account's
   // email threepid; the field is then locked to the account identity.
   const [organizerEmailDerived, setOrganizerEmailDerived] = useState(false);
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
+  const [date, setDate] = useState(() => initialDate ?? "");
+  const [time, setTime] = useState(() => initialTime ?? "");
   const [duration, setDuration] = useState<number>(
     () =>
+      initialDurationMinutes ??
       calendar?.default_duration_minutes ??
       CALENDAR_DEFAULTS.default_duration_minutes,
   );
