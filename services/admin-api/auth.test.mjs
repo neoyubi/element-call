@@ -119,6 +119,21 @@ describe("the scheduler credential", () => {
     );
   });
 
+  // A refusal here is about the bot, not the caller. Reporting it as "not
+  // authorized" sends whoever debugs it looking at the wrong account.
+  test("a bot that cannot read the room is a configuration fault, not a denial", async () => {
+    synapse({
+      whoami: { status: 200, data: { user_id: USER_ID } },
+      member: { status: 403, data: { errcode: "M_FORBIDDEN" } },
+    });
+
+    const result = await authorizeRequest(request(`Bearer ${USER_TOKEN}`), env());
+
+    assert.equal(result.ok, false);
+    assert.equal(result.status, 503);
+    assert.notEqual(result.status, 403);
+  });
+
   // Reading membership with the caller's own token would let anyone who can
   // read the room decide their own authorization.
   test("membership is read with the bot token, not the caller's", async () => {

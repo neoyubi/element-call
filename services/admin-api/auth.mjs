@@ -115,6 +115,22 @@ export async function authorizeRequest(req, env) {
     return { ok: false, status: 503, error: "Authentication service unavailable" };
   }
 
+  // The bot reads this state on the caller's behalf, so a refusal here is
+  // about the bot, not the caller: Synapse answers 403 when the bot is not in
+  // the schedulers room at all. Reporting that as "not authorized" sends
+  // whoever debugs it looking at the wrong account, so it is a configuration
+  // fault and says so. Access is still denied either way.
+  if (member.status === 403) {
+    console.error(
+      "Scheduler check failed: the bot account cannot read membership in the schedulers room. Invite it to SCHEDULERS_ROOM_ID.",
+    );
+    return {
+      ok: false,
+      status: 503,
+      error: "Scheduling is not configured correctly",
+    };
+  }
+
   // 404 = no membership state for this user in the schedulers room.
   if (member.status === 404 || member.data?.membership !== "join") {
     return { ok: false, status: 403, error: "Not authorized to schedule meetings" };
