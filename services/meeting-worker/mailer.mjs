@@ -8,6 +8,9 @@ const SMTP_USER = process.env.SMTP_USER;
 const SMTP_PASSWORD = process.env.SMTP_PASSWORD;
 const SMTP_FROM = process.env.SMTP_FROM;
 
+// Zone used to render times when a meeting carries none of its own.
+const DEFAULT_TIMEZONE = process.env.DEFAULT_TIMEZONE || "UTC";
+
 const SMTP_TIMEOUT_MS = 15000;
 
 // Reuse a single pooled transport across reminder sends.
@@ -40,7 +43,7 @@ function formatStart(startMs, tzid, lang) {
     return new Intl.DateTimeFormat(locale, {
       dateStyle: "full",
       timeStyle: "short",
-      timeZone: tzid || "Europe/Amsterdam",
+      timeZone: tzid || DEFAULT_TIMEZONE,
     }).format(new Date(startMs));
   } catch {
     // Invalid tzid → fall back to UTC rather than throwing.
