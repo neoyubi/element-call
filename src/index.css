@@ -38,6 +38,12 @@ layer(compound);
   shorter bar; anything that has to sit clear of the header reads it from
   here rather than guessing. */
   --header-block-size: var(--cpd-space-20x);
+  /* The block-end padding a scrolling page needs so its content clears the
+  license footer. The footer is fixed to the bottom of the window and overlays
+  the page instead of taking part in its layout, so a page whose content runs
+  to the bottom edge reads its clearance from here rather than guessing. Covers
+  the footer's own height and leaves a visible gap below the content. */
+  --license-footer-clearance: var(--cpd-space-10x);
   /* The distance to inset non-full-width content from the edge of the window
   along the inline axis. This ramps up from 16px for typical mobile windows, to
   96px for typical desktop windows. */

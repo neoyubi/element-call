@@ -15,6 +15,10 @@
   max-inline-size: calc(var(--cpd-space-64x) * 5);
   margin-inline: auto;
   padding: var(--cpd-space-4x);
+  /* The calendar body fills the page down to the bottom edge, where the fixed
+  license footer overlays it. Without this the grid runs underneath the footer
+  and the two read as one crowded band. */
+  padding-block-end: var(--license-footer-clearance);
   box-sizing: border-box;
 }
 
