@@ -2,6 +2,7 @@ import { type MatrixClient, type Room, RoomEvent } from "matrix-js-sdk";
 import { useState, useEffect } from "react";
 
 import { Config } from "../config/Config";
+import { CALENDAR_DEFAULTS } from "../config/ConfigOptions";
 
 export interface ScheduledMeeting {
   room: Room;
@@ -20,14 +21,15 @@ const DEFAULT_MEETING_STATE_TYPE = "io.element.call.scheduled_meeting";
 // Show meetings up to 1 hour after their start (in-progress grace)
 const GRACE_MS = 3600000;
 
-export function useScheduledMeetings(
-  client: MatrixClient,
-): ScheduledMeeting[] {
+export function useScheduledMeetings(client: MatrixClient): ScheduledMeeting[] {
   const [meetings, setMeetings] = useState<ScheduledMeeting[]>([]);
 
   useEffect(() => {
     const meetingStateType =
       Config.get().branding?.meeting_event_type ?? DEFAULT_MEETING_STATE_TYPE;
+    const defaultTimezone =
+      Config.get().calendar?.default_timezone ??
+      CALENDAR_DEFAULTS.default_timezone;
 
     function updateMeetings(): void {
       const now = Date.now();
@@ -74,11 +76,12 @@ export function useScheduledMeetings(
           roomName: room.name,
           bookingId: (content.booking_id as string) || "",
           scheduledStart,
-          scheduledEnd: (content.scheduled_end as number) || scheduledStart + 3600000,
+          scheduledEnd:
+            (content.scheduled_end as number) || scheduledStart + 3600000,
           organizerName: (content.organizer_name as string) || "",
           prospectName: (content.prospect_name as string) || "",
           practiceType: (content.practice_type as string) || "solo",
-          timezone: (content.timezone as string) || "Europe/Amsterdam",
+          timezone: (content.timezone as string) || defaultTimezone,
           isAdmin,
         });
       }

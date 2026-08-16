@@ -26,6 +26,7 @@ import { useSetting, showMeetingsCalendar } from "../settings/settings";
 import { useRoomEncryptionSystem } from "../e2ee/sharedKeyManagement";
 import { getRelativeRoomUrl } from "../utils/matrix";
 import { Config } from "../config/Config";
+import { CALENDAR_DEFAULTS } from "../config/ConfigOptions";
 import { useCanSchedule } from "./useCanSchedule";
 import { parseStart, formatDate, formatTime } from "./dateFormat";
 import { MiniCalendar } from "./MiniCalendar";
@@ -93,18 +94,17 @@ function formatRelativeTime(
   };
 }
 
-const DURATION_OPTIONS = [15, 30, 45, 60] as const;
-const DEFAULT_DURATION = 30;
-
 // Initial value for the duration select: the meeting's stored duration when
-// it matches one of the offered options, else the default.
-function initialDuration(meeting: ScheduledMeeting): number {
+// it matches one of the offered options, else the configured default.
+function initialDuration(
+  meeting: ScheduledMeeting,
+  options: readonly number[],
+  fallback: number,
+): number {
   const minutes = Math.round(
     (meeting.scheduledEnd - meeting.scheduledStart) / 60000,
   );
-  return (DURATION_OPTIONS as readonly number[]).includes(minutes)
-    ? minutes
-    : DEFAULT_DURATION;
+  return options.includes(minutes) ? minutes : fallback;
 }
 
 interface MeetingTileProps {
@@ -115,6 +115,12 @@ interface MeetingTileProps {
 
 const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
   const { t } = useTranslation();
+  const calendar = Config.get().calendar;
+  const durationOptions =
+    calendar?.duration_options ?? CALENDAR_DEFAULTS.duration_options;
+  const defaultDuration =
+    calendar?.default_duration_minutes ??
+    CALENDAR_DEFAULTS.default_duration_minutes;
   const roomEncryptionSystem = useRoomEncryptionSystem(meeting.room.roomId);
   const { text, urgent } = formatRelativeTime(meeting.scheduledStart, t);
   const [confirming, setConfirming] = useState(false);
@@ -122,7 +128,7 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
   const [editing, setEditing] = useState(false);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [duration, setDuration] = useState<number>(DEFAULT_DURATION);
+  const [duration, setDuration] = useState<number>(defaultDuration);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string>();
 
@@ -201,10 +207,10 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
       setEditError(undefined);
       setDate(formatDate(meeting.scheduledStart));
       setTime(formatTime(meeting.scheduledStart));
-      setDuration(initialDuration(meeting));
+      setDuration(initialDuration(meeting, durationOptions, defaultDuration));
       setEditing(true);
     },
-    [meeting],
+    [meeting, durationOptions, defaultDuration],
   );
 
   const onCancelEdit = useCallback((e: MouseEvent) => {
@@ -365,7 +371,7 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
                 setDuration(Number(e.target.value))
               }
             >
-              {DURATION_OPTIONS.map((minutes) => (
+              {durationOptions.map((minutes) => (
                 <option key={minutes} value={minutes}>
                   {t("schedule_meeting.minutes", { count: minutes })}
                 </option>

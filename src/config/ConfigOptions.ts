@@ -128,6 +128,27 @@ export interface ConfigOptions {
   schedulers_room_id?: string;
 
   /**
+   * Defaults for the scheduling form and the calendar views. The block and
+   * each field in it are optional; anything left out falls back to
+   * CALENDAR_DEFAULTS.
+   */
+  calendar?: {
+    /**
+     * IANA time zone recorded with a meeting when the browser does not report
+     * one of its own.
+     */
+    default_timezone?: string;
+    /** Meeting lengths offered, in minutes. */
+    duration_options?: number[];
+    /** Meeting length preselected in the scheduling form, in minutes. */
+    default_duration_minutes?: number;
+    /** Reminder lead times offered, in minutes. */
+    reminder_options?: number[];
+    /** Reminder lead time preselected in the scheduling form, in minutes. */
+    default_reminder_minutes?: number;
+  };
+
+  /**
    * Branding and identity configuration. All fields are optional so the
    * source ships with neutral defaults that fall back to upstream Element
    * Call's branding. Deployments override these values at runtime via
@@ -208,6 +229,20 @@ export interface ConfigOptions {
     membership_event_expiry_ms?: number;
   };
 }
+
+/**
+ * Fallbacks for the optional `calendar` block, applied at each read site.
+ * They deliberately do not live in DEFAULT_CONFIG: that is deep-merged with
+ * the deployment's config, which would splice a shorter option array into the
+ * default one rather than replacing it.
+ */
+export const CALENDAR_DEFAULTS = {
+  default_timezone: "UTC",
+  duration_options: [15, 30, 45, 60],
+  default_duration_minutes: 30,
+  reminder_options: [15, 30, 60, 120],
+  default_reminder_minutes: 30,
+} satisfies NonNullable<ConfigOptions["calendar"]>;
 
 // Overrides members from ConfigOptions that are always provided by the
 // default config and are therefore non-optional.

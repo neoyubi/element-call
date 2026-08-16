@@ -18,5 +18,14 @@
     "delayed_leave_event_delay_ms": 18000,
     "delayed_leave_event_restart_ms": 4000,
     "network_error_retry_ms": 100
+  },
+  "admin_api_url": "https://admin-api.mydomain.com",
+  "schedulers_room_id": "!schedulers:mydomain.com",
+  "calendar": {
+    "default_timezone": "UTC",
+    "duration_options": [15, 30, 45, 60],
+    "default_duration_minutes": 30,
+    "reminder_options": [15, 30, 60, 120],
+    "default_reminder_minutes": 30
   }
 }

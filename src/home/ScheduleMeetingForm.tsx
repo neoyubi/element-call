@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useState,
 } from "react";
 import { type MatrixClient } from "matrix-js-sdk";
@@ -14,6 +15,7 @@ import { Button, Heading, Text } from "@vector-im/compound-web";
 import { logger } from "matrix-js-sdk/lib/logger";
 
 import { Config } from "../config/Config";
+import { CALENDAR_DEFAULTS } from "../config/ConfigOptions";
 import { FieldRow, InputField, ErrorMessage } from "../input/Input";
 import { parseStart } from "./dateFormat";
 import styles from "./ScheduleMeetingForm.module.css";
@@ -22,52 +24,38 @@ interface Props {
   client: MatrixClient;
 }
 
-const DURATION_OPTIONS = [15, 30, 45, 60] as const;
-const REMINDER_OPTIONS = [15, 30, 60, 120] as const;
-const DEFAULT_DURATION = 30;
-const DEFAULT_REMINDER = 30;
-const DEFAULT_TIMEZONE = "Europe/Amsterdam";
 // Mirrors the HTML5 email input semantics: a non-empty local part, an "@",
 // and a dotted domain. Good enough for client-side guarding; the server is
 // the source of truth.
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function defaultTimezone(): string {
-  try {
-    return (
-      new Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_TIMEZONE
-    );
-  } catch {
-    return DEFAULT_TIMEZONE;
-  }
-}
-
-// Full IANA zone list where the runtime supports it, else a small fallback.
-// The current/local zone is always present and is the default selection.
-function timezoneOptions(): string[] {
-  const local = defaultTimezone();
+// Every IANA zone the runtime knows about, or just UTC where it knows none.
+// Computed once: the list is long and never changes.
+const SUPPORTED_TIMEZONES = ((): string[] => {
   const intl = Intl as typeof Intl & {
     supportedValuesOf?: (key: "timeZone") => string[];
   };
-  let zones: string[] = [];
   try {
     if (typeof intl.supportedValuesOf === "function")
-      zones = intl.supportedValuesOf("timeZone");
+      return intl.supportedValuesOf("timeZone");
   } catch {
-    zones = [];
+    // The runtime knows the function but not the key; fall through.
   }
-  if (zones.length === 0)
-    zones = [
-      local,
-      "UTC",
-      "Europe/Amsterdam",
-      "Europe/London",
-      "America/New_York",
-    ];
-  return zones.includes(local) ? zones : [local, ...zones];
-}
+  return ["UTC"];
+})();
 
-const TIMEZONE_OPTIONS = timezoneOptions();
+// The zone the browser reports, or the configured default where it reports
+// none.
+function defaultTimezone(): string {
+  const configured =
+    Config.get().calendar?.default_timezone ??
+    CALENDAR_DEFAULTS.default_timezone;
+  try {
+    return new Intl.DateTimeFormat().resolvedOptions().timeZone || configured;
+  } catch {
+    return configured;
+  }
+}
 
 interface SuccessResult {
   meetLink: string;
@@ -75,6 +63,11 @@ interface SuccessResult {
 
 export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
   const { t } = useTranslation();
+  const calendar = Config.get().calendar;
+  const durationOptions =
+    calendar?.duration_options ?? CALENDAR_DEFAULTS.duration_options;
+  const reminderOptions =
+    calendar?.reminder_options ?? CALENDAR_DEFAULTS.reminder_options;
 
   const [inviteeName, setInviteeName] = useState("");
   const [inviteeEmail, setInviteeEmail] = useState("");
@@ -84,9 +77,27 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
   const [organizerEmailDerived, setOrganizerEmailDerived] = useState(false);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [duration, setDuration] = useState<number>(DEFAULT_DURATION);
+  const [duration, setDuration] = useState<number>(
+    () =>
+      calendar?.default_duration_minutes ??
+      CALENDAR_DEFAULTS.default_duration_minutes,
+  );
   const [timezone, setTimezone] = useState<string>(defaultTimezone);
-  const [reminder, setReminder] = useState<number>(DEFAULT_REMINDER);
+  const [reminder, setReminder] = useState<number>(
+    () =>
+      calendar?.default_reminder_minutes ??
+      CALENDAR_DEFAULTS.default_reminder_minutes,
+  );
+
+  // The zone list is only rebuilt when the selection moves outside it, which
+  // happens at most once, for a zone the runtime does not enumerate.
+  const timezoneOptions = useMemo(
+    () =>
+      SUPPORTED_TIMEZONES.includes(timezone)
+        ? SUPPORTED_TIMEZONES
+        : [timezone, ...SUPPORTED_TIMEZONES],
+    [timezone],
+  );
 
   const [fieldError, setFieldError] = useState<string>();
   const [submitError, setSubmitError] = useState<Error>();
@@ -118,9 +129,15 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
     if (!organizerEmailDerived) setOrganizerEmail("");
     setDate("");
     setTime("");
-    setDuration(DEFAULT_DURATION);
-    setReminder(DEFAULT_REMINDER);
-  }, [organizerEmailDerived]);
+    setDuration(
+      calendar?.default_duration_minutes ??
+        CALENDAR_DEFAULTS.default_duration_minutes,
+    );
+    setReminder(
+      calendar?.default_reminder_minutes ??
+        CALENDAR_DEFAULTS.default_reminder_minutes,
+    );
+  }, [organizerEmailDerived, calendar]);
 
   const validate = useCallback((): string | undefined => {
     const name = inviteeName.trim();
@@ -324,7 +341,7 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
                   setDuration(Number(e.target.value))
                 }
               >
-                {DURATION_OPTIONS.map((minutes) => (
+                {durationOptions.map((minutes) => (
                   <option key={minutes} value={minutes}>
                     {t("schedule_meeting.minutes", { count: minutes })}
                   </option>
@@ -344,7 +361,7 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
                 }
               >
                 <option value={0}>{t("schedule_meeting.reminder_none")}</option>
-                {REMINDER_OPTIONS.map((minutes) => (
+                {reminderOptions.map((minutes) => (
                   <option key={minutes} value={minutes}>
                     {t("schedule_meeting.minutes", { count: minutes })}
                   </option>
@@ -362,7 +379,7 @@ export const ScheduleMeetingForm: FC<Props> = ({ client }) => {
                 setTimezone(e.target.value)
               }
             >
-              {TIMEZONE_OPTIONS.map((tz) => (
+              {timezoneOptions.map((tz) => (
                 <option key={tz} value={tz}>
                   {tz}
                 </option>
