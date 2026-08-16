@@ -152,6 +152,9 @@ describe("updateMeetingRoom merges request over stored state", () => {
       after.searchParams.get("meetingStart"),
       String(START + 3600000),
     );
+    // The alias in the path is the salt of the key derivation behind the
+    // password, so an update must never recompute it from current settings.
+    assert.equal(after.pathname, "/demo-b-1");
   });
 
   test("an unchanged start carries both notification stamps forward", async () => {
@@ -573,19 +576,42 @@ describe("createMeetingRoom", () => {
     }
   });
 
-  test("fence: the room alias localpart carries the demonstration prefix", async () => {
+  test("the room alias localpart is prefixed and configurable", async () => {
     const result = await createMeetingRoom(request);
+    assert.equal(result.body.room_alias, "#meet-b-1:example.com");
 
-    assert.equal(result.body.room_alias, "#demo-b-1:example.com");
+    const service = await withEnv({ ROOM_ALIAS_PREFIX: "appt-" }, "alias");
+    install();
+    synapse["POST /_matrix/client/v3/createRoom"] = {
+      status: 200,
+      data: { room_id: ROOM_ID },
+    };
+
+    const renamed = await service.createMeetingRoom(request);
+
+    assert.equal(renamed.body.room_alias, "#appt-b-1:example.com");
     assert.equal(
       synapseCalls("POST", "/createRoom").at(0).body.room_alias_name,
-      "demo-b-1",
+      "appt-b-1",
     );
   });
 
-  test("fence: the timezone falls back to a fixed European zone", async () => {
+  test("the timezone defaults to UTC and is configurable", async () => {
     await createMeetingRoom(request);
+    assert.equal(statePut().timezone, "UTC");
 
-    assert.equal(statePut().timezone, "Europe/Amsterdam");
+    const service = await withEnv(
+      { DEFAULT_TIMEZONE: "Europe/Berlin" },
+      "timezone",
+    );
+    install();
+    synapse["POST /_matrix/client/v3/createRoom"] = {
+      status: 200,
+      data: { room_id: ROOM_ID },
+    };
+
+    await service.createMeetingRoom(request);
+
+    assert.equal(statePut().timezone, "Europe/Berlin");
   });
 });

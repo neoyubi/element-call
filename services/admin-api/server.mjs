@@ -63,6 +63,17 @@ function renderTemplate(template, values) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => values[key] ?? "").trim();
 }
 
+// IANA zone recorded on a meeting whose caller did not supply one. It is what
+// reminder mail renders times in; the calendar writes absolute instants and
+// needs no zone of its own.
+const DEFAULT_TIMEZONE = process.env.DEFAULT_TIMEZONE || "UTC";
+
+// Localpart prefix for the room alias, which is the visible part of every join
+// link a person clicks. New rooms only: an existing alias is also the salt of
+// the key derivation behind an already-issued link, so changing this never
+// alters one that has been sent.
+const ROOM_ALIAS_PREFIX = process.env.ROOM_ALIAS_PREFIX || "meet-";
+
 // Default reminder lead time (minutes) when a request omits reminder_minutes.
 // 0 disables the reminder email.
 const REMINDER_DEFAULT_MINUTES = parseInt(
@@ -350,10 +361,10 @@ export async function createMeetingRoom(body) {
     };
   }
 
-  const tz = timezone || "Europe/Amsterdam";
+  const tz = timezone || DEFAULT_TIMEZONE;
   const reminderMinutes = normalizeReminderMinutes(reminder_minutes);
 
-  const aliasLocalpart = `demo-${booking_id}`;
+  const aliasLocalpart = `${ROOM_ALIAS_PREFIX}${booking_id}`;
   const roomAlias = `#${aliasLocalpart}:${SERVER_NAME}`;
 
   // Generate E2EE key material before room creation so it's in the initial state
@@ -550,7 +561,7 @@ export async function updateMeetingRoom(roomId, body) {
         ? current.reminder_minutes
         : REMINDER_DEFAULT_MINUTES;
 
-  const tz = merge(timezone, "timezone", "Europe/Amsterdam");
+  const tz = merge(timezone, "timezone", DEFAULT_TIMEZONE);
   const organizerEmail = merge(organizer_email, "organizer_email");
   const prospectEmail = merge(prospect_email, "prospect_email");
 
