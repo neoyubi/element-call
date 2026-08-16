@@ -15,14 +15,28 @@ export interface ScheduledMeeting {
   practiceType: string;
   timezone: string;
   isAdmin: boolean;
+  /** Absolute join URL, or "" when the meeting has none. */
+  meetLink: string;
+}
+
+export interface ScheduledMeetings {
+  meetings: ScheduledMeeting[];
+  /**
+   * True until the first scan has run. An empty list on its own cannot tell
+   * "still syncing" apart from "nothing scheduled".
+   */
+  loading: boolean;
 }
 
 const DEFAULT_MEETING_STATE_TYPE = "io.element.call.scheduled_meeting";
 // Show meetings up to 1 hour after their start (in-progress grace)
 const GRACE_MS = 3600000;
+// Duration assumed when the state event carries no end (malformed state)
+const DEFAULT_DURATION_MS = 3600000;
 
-export function useScheduledMeetings(client: MatrixClient): ScheduledMeeting[] {
+export function useScheduledMeetings(client: MatrixClient): ScheduledMeetings {
   const [meetings, setMeetings] = useState<ScheduledMeeting[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const meetingStateType =
@@ -77,18 +91,21 @@ export function useScheduledMeetings(client: MatrixClient): ScheduledMeeting[] {
           bookingId: (content.booking_id as string) || "",
           scheduledStart,
           scheduledEnd:
-            (content.scheduled_end as number) || scheduledStart + 3600000,
+            (content.scheduled_end as number) ||
+            scheduledStart + DEFAULT_DURATION_MS,
           organizerName: (content.organizer_name as string) || "",
           prospectName: (content.prospect_name as string) || "",
           practiceType: (content.practice_type as string) || "solo",
           timezone: (content.timezone as string) || defaultTimezone,
           isAdmin,
+          meetLink: (content.meet_link as string) || "",
         });
       }
 
       // Sort by scheduledStart ascending (soonest first)
       results.sort((a, b) => a.scheduledStart - b.scheduledStart);
       setMeetings(results);
+      setLoading(false);
     }
 
     updateMeetings();
@@ -101,5 +118,5 @@ export function useScheduledMeetings(client: MatrixClient): ScheduledMeeting[] {
     };
   }, [client]);
 
-  return meetings;
+  return { meetings, loading };
 }

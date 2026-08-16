@@ -407,7 +407,7 @@ function isSameDay(a: Date, b: Date): boolean {
 
 export const UpcomingMeetings: FC<UpcomingMeetingsProps> = ({ client }) => {
   const { t } = useTranslation();
-  const meetings = useScheduledMeetings(client);
+  const { meetings } = useScheduledMeetings(client);
   const canSchedule = useCanSchedule(client);
   const [showCalendar, setShowCalendar] = useSetting(showMeetingsCalendar);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
