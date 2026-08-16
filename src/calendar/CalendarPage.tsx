@@ -1,4 +1,11 @@
-import { type FC, useCallback, useMemo, useState } from "react";
+import {
+  type FC,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { type MatrixClient } from "matrix-js-sdk";
 import { type TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -96,6 +103,20 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
   const [preferredView, setPreferredView] = useSetting(calendarView);
   const [selected, setSelected] = useState<ScheduledMeeting | null>(null);
   const [slot, setSlot] = useState<Date | null>(null);
+
+  // Closing the detail dialog leaves focus on the document body, so the
+  // calendar remembers what opened it and puts focus back on the way out.
+  const opener = useRef<HTMLElement | null>(null);
+  const openMeeting = useCallback((meeting: ScheduledMeeting): void => {
+    opener.current = document.activeElement as HTMLElement | null;
+    setSelected(meeting);
+  }, []);
+  useEffect(() => {
+    if (selected !== null) return;
+    const target = opener.current;
+    opener.current = null;
+    target?.focus();
+  }, [selected]);
 
   // The URL owns the view and the focused date, so the back button works and
   // a link restores exactly what the sender was looking at.
@@ -243,7 +264,7 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
                 focusedDate={focusedDate}
                 meetings={meetings}
                 onSelectDay={onSelectDay}
-                onSelectMeeting={setSelected}
+                onSelectMeeting={openMeeting}
                 onFocusDate={(date) => navigate({ date }, true)}
               />
             )}
@@ -258,7 +279,7 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
                 meetings={meetings}
                 canSchedule={canSchedule}
                 onSelectDay={onSelectDay}
-                onSelectMeeting={setSelected}
+                onSelectMeeting={openMeeting}
                 onSelectSlot={setSlot}
               />
             )}
@@ -267,7 +288,7 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
                 meetings={meetings}
                 rangeStart={range.start}
                 rangeEnd={range.end}
-                onSelectMeeting={setSelected}
+                onSelectMeeting={openMeeting}
               />
             )}
           </div>
