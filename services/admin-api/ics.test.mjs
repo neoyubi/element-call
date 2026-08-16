@@ -23,7 +23,6 @@ function baseEvent(overrides = {}) {
     location: "https://call.example.com/m",
     organizerEmail: "calendar@example.com",
     attendeeEmails: ["organizer@example.com", "guest@example.com"],
-    tzid: "Europe/Berlin",
     ...overrides,
   };
 }
@@ -55,8 +54,8 @@ describe("buildVEvent golden documents", () => {
         "UID:booking-1@example.com",
         "SEQUENCE:3",
         `DTSTAMP:${DTSTAMP}`,
-        "DTSTART;TZID=Europe/Berlin:20260901T140000",
-        "DTEND;TZID=Europe/Berlin:20260901T143000",
+        "DTSTART:20260901T120000Z",
+        "DTEND:20260901T123000Z",
         "SUMMARY:Appointment",
         "DESCRIPTION:Join: https://call.example.com/m",
         "LOCATION:https://call.example.com/m",
@@ -112,7 +111,7 @@ describe("buildVEvent golden documents", () => {
     );
     assert.equal(
       second.find((line) => line.startsWith("DTSTART")),
-      "DTSTART;TZID=Europe/Berlin:20260901T150000",
+      "DTSTART:20260901T130000Z",
     );
   });
 
@@ -162,7 +161,6 @@ describe("text escaping and injection guards", () => {
         uid: "booking\r\n-2@example.com",
         summary: "one\r\ntwo",
         location: "https://call.example.com/\r\nm",
-        tzid: "Europe/\r\nBerlin",
         organizerEmail: "calendar\r\n@example.com",
         attendeeEmails: ["guest\r\n@example.com"],
       }),
@@ -218,20 +216,22 @@ describe("line folding", () => {
 });
 
 describe("date-time rendering", () => {
-  test("without a TZID the value is a UTC instant", () => {
-    const lines = logicalLines(buildVEvent(baseEvent({ tzid: undefined })));
+  test("start and end are UTC instants", () => {
+    const lines = logicalLines(buildVEvent(baseEvent()));
 
     assert.ok(lines.includes("DTSTART:20260901T120000Z"));
     assert.ok(lines.includes("DTEND:20260901T123000Z"));
   });
 
-  test("with a TZID the value is local wall-clock time and carries no Z", () => {
-    const lines = logicalLines(
-      buildVEvent(baseEvent({ tzid: "Pacific/Auckland" })),
-    );
+  // A TZID parameter obliges the writer to ship a matching VTIMEZONE
+  // component (RFC 4791 section 4.1). The times here are absolute instants,
+  // so the UTC form says the same thing and every client renders it in the
+  // reader's own zone.
+  test("no zone parameter and no zone component are written", () => {
+    const document = unfold(buildVEvent(baseEvent()));
 
-    assert.ok(lines.includes("DTSTART;TZID=Pacific/Auckland:20260902T000000"));
-    assert.ok(!lines.some((line) => /^DTSTART.*Z$/.test(line)));
+    assert.ok(!document.includes("TZID="));
+    assert.ok(!document.includes("BEGIN:VTIMEZONE"));
   });
 
   test("DTSTAMP is always a UTC instant", () => {
@@ -246,10 +246,6 @@ describe("date-time rendering", () => {
 // assertion below is rewritten in the same commit rather than quietly passing.
 describe("known gaps (deliberate fences)", () => {
   const ics = () => buildVEvent(baseEvent());
-
-  test("fence: no VTIMEZONE accompanies the TZID parameter", () => {
-    assert.ok(!ics().includes("BEGIN:VTIMEZONE"));
-  });
 
   test("fence: CN parameters are TEXT-escaped rather than quoted", () => {
     const lines = logicalLines(

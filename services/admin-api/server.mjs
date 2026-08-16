@@ -223,7 +223,6 @@ async function writeCalendarEvent({
   endMs,
   roomName,
   meetLink,
-  timezone,
   organizerEmail,
   prospectEmail,
 }) {
@@ -243,7 +242,6 @@ async function writeCalendarEvent({
       location: meetLink,
       organizerEmail: CALDAV_USER,
       attendeeEmails,
-      tzid: timezone,
     });
     await putEvent({ uid, ics });
   } catch (err) {
@@ -451,7 +449,6 @@ export async function createMeetingRoom(body) {
     endMs: scheduled_end,
     roomName: room_name,
     meetLink,
-    timezone: tz,
     organizerEmail: organizer_email,
     prospectEmail: prospect_email,
   });
@@ -605,7 +602,6 @@ export async function updateMeetingRoom(roomId, body) {
     endMs: newEnd,
     roomName: room_name || newState.prospect_name || newState.booking_id,
     meetLink,
-    timezone: tz,
     organizerEmail,
     prospectEmail,
   });

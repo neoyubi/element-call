@@ -29,7 +29,7 @@ function escapeText(value) {
 }
 
 // Remove any CR/LF from a value used outside a TEXT context (UID, URL, CN,
-// mailto, TZID). These must never contain a line break.
+// mailto). These must never contain a line break.
 function sanitizeRaw(value) {
   return String(value ?? "").replace(/[\r\n]/g, "");
 }
@@ -60,40 +60,21 @@ function foldLine(line) {
   return pieces.join("\r\n ");
 }
 
-// Format a unix-ms instant as an iCal date-time. With a tzid we emit local
-// "floating" time (the TZID parameter on the property gives the zone); without
-// one we emit UTC (trailing Z).
-function formatDateTime(ms, tzid) {
-  const d = new Date(ms);
-  if (tzid) {
-    // Render the wall-clock time in the target zone via Intl, then assemble.
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: tzid,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    }).formatToParts(d);
-    const get = (type) => parts.find((p) => p.type === type)?.value ?? "00";
-    let hour = get("hour");
-    // Intl may render midnight as "24"; normalize to "00".
-    if (hour === "24") hour = "00";
-    return `${get("year")}${get("month")}${get("day")}T${hour}${get("minute")}${get("second")}`;
-  }
-  const iso = d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
-  return iso;
-}
-
-function dtstamp() {
-  return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+// Format a unix-ms instant as an iCalendar UTC date-time (RFC 5545 §3.3.5).
+// Every time this module writes is an absolute instant, so a TZID parameter
+// would carry nothing the UTC form does not — while RFC 4791 §4.1 requires a
+// matching VTIMEZONE component for each TZID used, and clients that enforce
+// that reject or silently shift an event without one.
+function formatUtc(ms) {
+  return new Date(ms)
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
 }
 
 // buildVEvent({
 //   uid, sequence, startMs, endMs, summary, description,
-//   location, organizerEmail, attendeeEmails, tzid
+//   location, organizerEmail, attendeeEmails
 // }) -> VCALENDAR string (CRLF line endings).
 export function buildVEvent({
   uid,
@@ -105,11 +86,8 @@ export function buildVEvent({
   location,
   organizerEmail,
   attendeeEmails = [],
-  tzid,
 }) {
   const cleanUid = sanitizeRaw(uid);
-  const cleanTzid = tzid ? sanitizeRaw(tzid) : null;
-  const tzParam = cleanTzid ? `;TZID=${cleanTzid}` : "";
 
   const lines = [];
   lines.push("BEGIN:VCALENDAR");
@@ -119,9 +97,9 @@ export function buildVEvent({
   lines.push("BEGIN:VEVENT");
   lines.push(`UID:${cleanUid}`);
   lines.push(`SEQUENCE:${Number.isInteger(sequence) ? sequence : 0}`);
-  lines.push(`DTSTAMP:${dtstamp()}`);
-  lines.push(`DTSTART${tzParam}:${formatDateTime(startMs, cleanTzid)}`);
-  lines.push(`DTEND${tzParam}:${formatDateTime(endMs, cleanTzid)}`);
+  lines.push(`DTSTAMP:${formatUtc(Date.now())}`);
+  lines.push(`DTSTART:${formatUtc(startMs)}`);
+  lines.push(`DTEND:${formatUtc(endMs)}`);
   lines.push(`SUMMARY:${escapeText(summary)}`);
   if (description) {
     lines.push(`DESCRIPTION:${escapeText(description)}`);
