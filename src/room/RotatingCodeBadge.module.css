@@ -10,16 +10,18 @@
   transition: background 0.15s;
 }
 
-.badge:hover {
-  background: var(--cpd-color-bg-subtle-secondary);
+@media (hover: hover) {
+  .badge:hover {
+    background: var(--cpd-color-bg-subtle-secondary);
+  }
+
+  .badge.disabled:hover {
+    background: var(--cpd-color-bg-subtle-primary);
+  }
 }
 
 .badge.disabled {
   cursor: default;
-}
-
-.badge.disabled:hover {
-  background: var(--cpd-color-bg-subtle-primary);
 }
 
 /* Clickable code area */
@@ -35,6 +37,12 @@
 
 .codeButton:disabled {
   cursor: default;
+}
+
+.codeButton:focus-visible,
+.actionButton:focus-visible {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-border-width-1);
 }
 
 /* Code text */
@@ -114,8 +122,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  /* The glyph stays small; the box is a full touch target. */
+  inline-size: var(--cpd-space-11x);
+  block-size: var(--cpd-space-11x);
   padding: 0;
   border: none;
   border-radius: var(--cpd-space-1x);
@@ -126,8 +135,10 @@
   flex-shrink: 0;
 }
 
-.actionButton:hover {
-  color: var(--cpd-color-icon-primary);
+@media (hover: hover) {
+  .actionButton:hover {
+    color: var(--cpd-color-icon-primary);
+  }
 }
 
 .actionButton svg {
@@ -140,4 +151,17 @@
   font-size: var(--cpd-font-size-body-xs);
   color: var(--cpd-color-text-secondary);
   font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge,
+  .code,
+  .countdownRingProgress,
+  .actionButton {
+    transition-duration: 0s;
+  }
+
+  .code.rotating {
+    animation: none;
+  }
 }

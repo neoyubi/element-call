@@ -132,7 +132,9 @@ Please see LICENSE in the repository root for full details.
   }
 }
 
-@media (max-height: 800px) {
+/* Exclusive with the query above: both used to match below 400px, and the
+broader one won on source order, so the tight-landscape padding never applied. */
+@media (min-height: 401px) and (max-height: 800px) {
   .footer {
     padding-block: var(--cpd-space-8x);
   }
@@ -172,8 +174,9 @@ Please see LICENSE in the repository root for full details.
 .knockBadge {
   display: inline-flex;
   align-items: center;
+  min-block-size: var(--cpd-space-11x);
   padding: var(--cpd-space-1x) var(--cpd-space-3x);
-  border-radius: 999px;
+  border-radius: var(--cpd-radius-pill-effect);
   background: var(--cpd-color-bg-critical-primary);
   color: var(--cpd-color-text-on-solid-primary);
   font-size: var(--cpd-font-size-body-sm);
@@ -188,6 +191,11 @@ Please see LICENSE in the repository root for full details.
   background: var(--cpd-color-bg-critical-hovered);
 }
 
+.knockBadge:focus-visible {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-border-width-2);
+}
+
 .tile {
   position: absolute;
   inset-block-start: 0;
@@ -196,4 +204,11 @@ Please see LICENSE in the repository root for full details.
 .tile.maximised {
   position: relative;
   flex-grow: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .footer.overlay,
+  .knockBadge {
+    transition-duration: 0s;
+  }
 }

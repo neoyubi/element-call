@@ -420,9 +420,7 @@ export const InCallView: FC<InCallViewProps> = ({
   const waitingOverlay: JSX.Element | null = useMemo(() => {
     return ringOverlay ? (
       <div className={classNames(overlayStyles.bg, waitingStyles.overlay)}>
-        <div
-          className={classNames(overlayStyles.content, waitingStyles.content)}
-        >
+        <div className={waitingStyles.content}>
           <div className={waitingStyles.pulse}>
             <Avatar
               id={ringOverlay.idForAvatar}

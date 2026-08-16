@@ -22,11 +22,13 @@
 .pulse::before {
   content: "";
   position: absolute;
-  inset: -12px;
-  border-radius: 9999px;
-  border: 12px solid rgba(255, 255, 255, 0.6);
+  inset: calc(-1 * var(--cpd-space-3x));
+  border-radius: var(--cpd-radius-pill-effect);
+  border: var(--cpd-space-3x) solid rgba(255, 255, 255, 0.6);
   animation: pulse var(--call-ring-duration-s) ease-out infinite;
-  animation-delay: 1s;
+  /* Set from the measured length of the ring tone, so the ring stays in step
+  with the sound. */
+  animation-delay: var(--call-ring-delay-s, 1s);
   opacity: 0;
 }
 
@@ -57,5 +59,11 @@
   }
   100% {
     transform: scale(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse::before {
+    animation: none;
   }
 }
