@@ -266,17 +266,6 @@ describe("calendar writes (deliberate fences)", () => {
     assert.equal(statePut().sequence, 5);
     assert.equal(caldavCalls().length, 1);
   });
-
-  test("fence: the event title comes from the request, not from a template", async () => {
-    scriptState(storedMeeting());
-
-    await updateMeetingRoom(ROOM_ID, {
-      scheduled_start: START + 3600000,
-      room_name: "Sam Prospect",
-    });
-
-    assert.match(caldavCalls()[0].ics, /^SUMMARY:Sam Prospect$/m);
-  });
 });
 
 describe("deleteMeetingRoom", () => {
@@ -425,6 +414,82 @@ describe("organizer identity", () => {
     });
 
     assert.equal(organizerLine(), undefined);
+  });
+});
+
+describe("what the calendar shows", () => {
+  // Property lines are folded at 75 octets, so they are joined back up before
+  // the value is read.
+  const property = (name) =>
+    caldavCalls()[0]
+      .ics.replace(/\r\n[ \t]/g, "")
+      .match(new RegExp(`^${name}:(.*)$`, "m"))[1];
+  const summary = () => property("SUMMARY");
+  const description = () => property("DESCRIPTION");
+
+  // The title is also the subject line of every invitation mail, so the
+  // default must not put a person's name into a notification preview on every
+  // device the collection reaches.
+  test("the default title names no one and the body carries the link", async () => {
+    scriptState(storedMeeting());
+
+    await updateMeetingRoom(ROOM_ID, { scheduled_start: START + 3600000 });
+
+    assert.equal(summary(), "Appointment");
+    assert.equal(description(), `Join: ${statePut().meet_link}`);
+  });
+
+  test("a room name in the request does not become the title", async () => {
+    scriptState(storedMeeting());
+
+    await updateMeetingRoom(ROOM_ID, {
+      scheduled_start: START + 3600000,
+      room_name: "Sam Prospect",
+    });
+
+    assert.equal(summary(), "Appointment");
+  });
+
+  test("a template renders the meeting fields it names", async () => {
+    const service = await withEnv(
+      {
+        MEETING_SUMMARY_TEMPLATE: "Consultation with {{prospect_name}}",
+        MEETING_DESCRIPTION_TEMPLATE: "{{organizer_name}} — {{meet_link}}",
+      },
+      "templates",
+    );
+    scriptState(storedMeeting());
+
+    await service.updateMeetingRoom(ROOM_ID, {
+      scheduled_start: START + 3600000,
+    });
+
+    assert.equal(summary(), "Consultation with Sam Prospect");
+    assert.match(description(), /^Alex Organizer — https:/);
+  });
+
+  test("a placeholder with no value renders empty", async () => {
+    const service = await withEnv(
+      { MEETING_SUMMARY_TEMPLATE: "{{prospect_name}} {{nonsense}}" },
+      "templates-empty",
+    );
+    scriptState(storedMeeting({ prospect_name: "" }));
+
+    await service.updateMeetingRoom(ROOM_ID, {
+      scheduled_start: START + 3600000,
+    });
+
+    assert.equal(summary(), "");
+  });
+
+  // A cancellation is a resource removal, so there is no document to title.
+  // The booking identifier can no longer end up as an event title anywhere.
+  test("a cancellation writes no title at all", async () => {
+    scriptState(storedMeeting());
+
+    await deleteMeetingRoom(ROOM_ID);
+
+    assert.ok(caldavCalls().every((call) => call.ics === undefined));
   });
 });
 

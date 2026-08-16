@@ -45,6 +45,24 @@ const CALDAV_ORGANIZER_EMAIL =
 // Display name shown beside the organizer address. Unset omits the parameter.
 const CALDAV_ORGANIZER_NAME = process.env.CALDAV_ORGANIZER_NAME;
 
+// What a calendar shows for a meeting. The summary becomes the event title and
+// the subject line of every invitation mail, so it surfaces in notification
+// previews on every device the collection reaches: the default says nothing
+// about who is meeting whom, and a deployment opts in to more. The description
+// is the body text clients render, which is where a join link belongs.
+//
+// Placeholders: {{prospect_name}}, {{organizer_name}}, {{meet_link}}.
+const MEETING_SUMMARY_TEMPLATE =
+  process.env.MEETING_SUMMARY_TEMPLATE || "Appointment";
+const MEETING_DESCRIPTION_TEMPLATE =
+  process.env.MEETING_DESCRIPTION_TEMPLATE || "Join: {{meet_link}}";
+
+// Substitute {{placeholder}} values. An unknown placeholder renders empty, so
+// a template is never shown to a reader with its own markup in it.
+function renderTemplate(template, values) {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => values[key] ?? "").trim();
+}
+
 // Default reminder lead time (minutes) when a request omits reminder_minutes.
 // 0 disables the reminder email.
 const REMINDER_DEFAULT_MINUTES = parseInt(
@@ -234,7 +252,6 @@ async function writeCalendarEvent({
   sequence,
   startMs,
   endMs,
-  roomName,
   meetLink,
   organizerName,
   prospectName,
@@ -248,6 +265,11 @@ async function writeCalendarEvent({
     { email: organizerEmail, name: organizerName },
     { email: prospectEmail, name: prospectName },
   ].filter((attendee) => attendee.email);
+  const values = {
+    organizer_name: organizerName,
+    prospect_name: prospectName,
+    meet_link: meetLink,
+  };
   const uid = bookingUid(bookingId);
   try {
     const ics = buildVEvent({
@@ -255,8 +277,8 @@ async function writeCalendarEvent({
       sequence,
       startMs,
       endMs,
-      summary: roomName,
-      description: roomName,
+      summary: renderTemplate(MEETING_SUMMARY_TEMPLATE, values),
+      description: renderTemplate(MEETING_DESCRIPTION_TEMPLATE, values),
       location: meetLink,
       organizer: {
         email: CALDAV_ORGANIZER_EMAIL,
@@ -468,7 +490,6 @@ export async function createMeetingRoom(body) {
     sequence: 0,
     startMs: scheduled_start,
     endMs: scheduled_end,
-    roomName: room_name,
     meetLink,
     organizerName: organizer_name,
     prospectName: prospect_name,
@@ -623,7 +644,6 @@ export async function updateMeetingRoom(roomId, body) {
     sequence,
     startMs: newStart,
     endMs: newEnd,
-    roomName: room_name || newState.prospect_name || newState.booking_id,
     meetLink,
     organizerName: newState.organizer_name,
     prospectName: newState.prospect_name,
