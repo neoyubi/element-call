@@ -40,14 +40,19 @@ const REMINDER_DEFAULT_MINUTES = parseInt(
 );
 
 // Stable iCalendar UID for a booking. Domain comes from SERVER_NAME so no
-// tenant hostname is baked into the source.
-function bookingUid(bookingId) {
+// deployment hostname is baked into the source.
+//
+// The composition itself is deliberately not configurable: the UID is the
+// identity of the event in every calendar it reaches, so changing it would
+// orphan every resource already written. meeting-worker derives the same value
+// independently for the retention purge.
+export function bookingUid(bookingId) {
   return `booking-${bookingId}@${SERVER_NAME}`;
 }
 
 // Normalize reminder_minutes from a request body: integer >= 0, defaulting to
 // REMINDER_DEFAULT_MINUTES when absent. 0 means no reminder.
-function normalizeReminderMinutes(value) {
+export function normalizeReminderMinutes(value) {
   if (value === undefined || value === null) {
     return REMINDER_DEFAULT_MINUTES;
   }
@@ -141,6 +146,7 @@ function isRateLimited(ip) {
   return entry.count > RATE_LIMIT_MAX;
 }
 
+// Housekeeping only, so it must not be a reason for the process to stay alive.
 setInterval(() => {
   const now = Date.now();
   for (const [ip, entry] of rateLimitMap) {
@@ -148,7 +154,7 @@ setInterval(() => {
       rateLimitMap.delete(ip);
     }
   }
-}, RATE_LIMIT_WINDOW_MS);
+}, RATE_LIMIT_WINDOW_MS).unref();
 
 // --- Helpers ---
 function getClientIp(req) {
@@ -303,7 +309,7 @@ async function readMeetingState(roomId) {
 
 // --- Room Management ---
 
-async function createMeetingRoom(body) {
+export async function createMeetingRoom(body) {
   const {
     booking_id,
     room_name,
@@ -491,7 +497,7 @@ async function createMeetingRoom(body) {
   };
 }
 
-async function updateMeetingRoom(roomId, body) {
+export async function updateMeetingRoom(roomId, body) {
   const {
     booking_id,
     scheduled_start,
@@ -635,7 +641,7 @@ async function updateMeetingRoom(roomId, body) {
   return { status: 200, body: { success: true, room_id: roomId } };
 }
 
-async function deleteMeetingRoom(roomId) {
+export async function deleteMeetingRoom(roomId) {
   // Read the meeting state first so a CANCEL invite can be emitted before the
   // room (and its state) are purged.
   const current = await readMeetingState(roomId);
@@ -862,15 +868,19 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Element Call Admin API listening on port ${PORT}`);
-  console.log(`Synapse URL: ${SYNAPSE_URL}`);
-  console.log(`Server name: ${SERVER_NAME}`);
-  console.log(`Element Call base URL: ${ELEMENT_CALL_BASE_URL}`);
-  console.log(
-    `Allowed origins: ${ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS.join(", ") : "none (CORS disabled)"}`,
-  );
-  console.log(
-    `Scheduler auth: ${SCHEDULERS_ROOM_ID ? "enabled" : "disabled (service key only)"}`,
-  );
-});
+// Bind the port only when this file is the program being run, so the handlers
+// above can be imported and exercised directly.
+if (import.meta.main) {
+  server.listen(PORT, () => {
+    console.log(`Element Call Admin API listening on port ${PORT}`);
+    console.log(`Synapse URL: ${SYNAPSE_URL}`);
+    console.log(`Server name: ${SERVER_NAME}`);
+    console.log(`Element Call base URL: ${ELEMENT_CALL_BASE_URL}`);
+    console.log(
+      `Allowed origins: ${ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS.join(", ") : "none (CORS disabled)"}`,
+    );
+    console.log(
+      `Scheduler auth: ${SCHEDULERS_ROOM_ID ? "enabled" : "disabled (service key only)"}`,
+    );
+  });
+}
