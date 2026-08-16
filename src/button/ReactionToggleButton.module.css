@@ -64,14 +64,16 @@ div.reactionPopupMenuRoot.reactionPopupMenuModal > div > div {
   overflow-x: hidden;
   overflow-y: auto;
   list-style: none;
-  flex-wrap: wrap;
   display: flex;
   flex-wrap: wrap;
   flex-direction: row;
   justify-content: start;
-  align-items: auto;
   align-content: start;
   width: fit-content;
+}
+
+.reactionsMenuExpanded {
+  max-height: none;
 }
 
 .reactionsMenu > * {
@@ -82,7 +84,9 @@ div.reactionPopupMenuRoot.reactionPopupMenuModal > div > div {
   padding: var(--reaction-button-padding);
   border-radius: var(--cpd-radius-pill-effect);
   font-size: var(--reaction-button-fontsize);
-  min-block-size: unset;
+  /* The glyph shrinks on narrow windows; the target must not */
+  min-block-size: var(--cpd-space-11x);
+  min-inline-size: var(--cpd-space-11x);
   border: none;
   aspect-ratio: 1 / 1;
   height: 100%;
@@ -109,5 +113,11 @@ div.reactionPopupMenuRoot.reactionPopupMenuModal > div > div {
 
   to {
     height: 2.5em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert {
+    animation: none;
   }
 }

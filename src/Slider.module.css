@@ -9,6 +9,9 @@ Please see LICENSE in the repository root for full details.
   display: flex;
   align-items: center;
   position: relative;
+  /* The track is only 8px tall; pad the control out to a strip that can
+  actually be hit with a finger. */
+  padding-block: var(--cpd-space-2x);
 }
 
 .track {
@@ -42,6 +45,7 @@ Please see LICENSE in the repository root for full details.
 
 .handle {
   display: block;
+  position: relative;
   block-size: var(--cpd-space-4x);
   inline-size: var(--cpd-space-4x);
   border-radius: var(--cpd-radius-pill-effect);
@@ -51,7 +55,27 @@ Please see LICENSE in the repository root for full details.
   transition: background-color ease 0.15s;
 }
 
+/* Keep the thumb visually small but grab it from a full-size target */
+.handle::before {
+  content: "";
+  position: absolute;
+  inset: calc(-0.5 * (var(--cpd-space-11x) - var(--cpd-space-4x)));
+}
+
+.handle:focus-visible {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-space-0-5x);
+}
+
 .handle[data-disabled] {
   cursor: initial;
   background: var(--cpd-color-bg-action-primary-disabled);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track,
+  .highlight,
+  .handle {
+    transition-duration: 0s;
+  }
 }
