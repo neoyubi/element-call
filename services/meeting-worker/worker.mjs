@@ -134,7 +134,7 @@ async function deleteCaldavEvent(uid) {
 // room reads the state once, applies the reschedule notice first (a moved
 // meeting announces the move before any reminder for the new time), then the
 // reminder, and persists everything with a single write.
-async function processMeetingEmails() {
+export async function processMeetingEmails() {
   const now = Date.now();
   const rooms = await listJoinedRooms();
 
@@ -297,7 +297,7 @@ async function processMeetingEmails() {
 }
 
 // --- Task 2: retention purge ---
-const PII_FIELDS = [
+export const PII_FIELDS = [
   "organizer_name",
   "prospect_name",
   "organizer_email",
@@ -312,7 +312,7 @@ function isAlreadyRedacted(meeting) {
   });
 }
 
-async function processRetention() {
+export async function processRetention() {
   const now = Date.now();
   const cutoff = now - MEETING_RETENTION_DAYS * DAY_MS;
   const rooms = await listJoinedRooms();
@@ -413,4 +413,8 @@ function main() {
   setInterval(() => void retentionTick(), DAY_MS);
 }
 
-main();
+// Run the poll loops only when this file is the program being run, so the
+// passes above can be invoked directly.
+if (import.meta.main) {
+  main();
+}
