@@ -347,6 +347,87 @@ describe("deleteMeetingRoom", () => {
   });
 });
 
+// Configuration is read once when the module loads, so each case imports its
+// own instance of the service.
+async function withEnv(overrides, fixture) {
+  const previous = {};
+  for (const [key, value] of Object.entries(overrides)) {
+    previous[key] = process.env[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  try {
+    return await import(`./server.mjs?${fixture}`);
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
+describe("organizer identity", () => {
+  const organizerLine = () =>
+    caldavCalls()[0]
+      .ics.split("\r\n")
+      .find((line) => line.startsWith("ORGANIZER"));
+
+  test("defaults to the CalDAV login when that login is an address", async () => {
+    scriptState(storedMeeting());
+
+    await updateMeetingRoom(ROOM_ID, { scheduled_start: START + 3600000 });
+
+    assert.equal(organizerLine(), "ORGANIZER:mailto:calendar@example.com");
+  });
+
+  test("a configured address is used in place of the login", async () => {
+    const service = await withEnv(
+      { CALDAV_ORGANIZER_EMAIL: "bookings@example.com" },
+      "organizer-address",
+    );
+    scriptState(storedMeeting());
+
+    await service.updateMeetingRoom(ROOM_ID, {
+      scheduled_start: START + 3600000,
+    });
+
+    assert.equal(organizerLine(), "ORGANIZER:mailto:bookings@example.com");
+  });
+
+  test("a configured name becomes the display name", async () => {
+    const service = await withEnv(
+      { CALDAV_ORGANIZER_NAME: "Example Practice" },
+      "organizer-name",
+    );
+    scriptState(storedMeeting());
+
+    await service.updateMeetingRoom(ROOM_ID, {
+      scheduled_start: START + 3600000,
+    });
+
+    assert.equal(
+      organizerLine(),
+      "ORGANIZER;CN=Example Practice:mailto:calendar@example.com",
+    );
+  });
+
+  // mailto:jdoe is not an address, and emitting it breaks scheduling outright,
+  // so a login that is not an address means no organizer at all.
+  test("a login that is not an address omits the organizer", async () => {
+    const service = await withEnv(
+      { CALDAV_USER: "jdoe", CALDAV_ORGANIZER_EMAIL: undefined },
+      "organizer-login-not-an-address",
+    );
+    scriptState(storedMeeting());
+
+    await service.updateMeetingRoom(ROOM_ID, {
+      scheduled_start: START + 3600000,
+    });
+
+    assert.equal(organizerLine(), undefined);
+  });
+});
+
 describe("createMeetingRoom", () => {
   const request = {
     booking_id: "b-1",

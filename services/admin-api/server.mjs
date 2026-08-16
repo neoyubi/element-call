@@ -29,8 +29,21 @@ const MEETING_STATE_TYPE =
   process.env.MEETING_STATE_TYPE || "io.element.call.scheduled_meeting";
 const BOT_USER_PREFIX = process.env.BOT_USER_PREFIX || "call-bot";
 
-// Shared scheduling mailbox; also the ICS ORGANIZER address.
-const CALDAV_USER = process.env.CALDAV_USER;
+// The calendar ORGANIZER is the shared scheduling identity that owns the
+// collection, and implicit scheduling depends on it matching that account: a
+// server resolves it against the collection owner's addresses and does nothing
+// when it does not match. It coincides with the CalDAV login on some
+// deployments and not on others, since a login may be a bare username, which
+// is not a usable mailto value — so it is configured in its own right and
+// falls back to the login only when that login is itself an address.
+const CALDAV_ORGANIZER_EMAIL =
+  process.env.CALDAV_ORGANIZER_EMAIL ||
+  (process.env.CALDAV_USER?.includes("@")
+    ? process.env.CALDAV_USER
+    : undefined);
+
+// Display name shown beside the organizer address. Unset omits the parameter.
+const CALDAV_ORGANIZER_NAME = process.env.CALDAV_ORGANIZER_NAME;
 
 // Default reminder lead time (minutes) when a request omits reminder_minutes.
 // 0 disables the reminder email.
@@ -245,7 +258,10 @@ async function writeCalendarEvent({
       summary: roomName,
       description: roomName,
       location: meetLink,
-      organizer: { email: CALDAV_USER },
+      organizer: {
+        email: CALDAV_ORGANIZER_EMAIL,
+        name: CALDAV_ORGANIZER_NAME,
+      },
       attendees,
     });
     await putEvent({ uid, ics });
