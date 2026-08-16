@@ -27,6 +27,7 @@ import { useRoomEncryptionSystem } from "../e2ee/sharedKeyManagement";
 import { getRelativeRoomUrl } from "../utils/matrix";
 import { Config } from "../config/Config";
 import { CALENDAR_DEFAULTS } from "../config/ConfigOptions";
+import { formatRelativeStart, isSameDay } from "../calendar/dates";
 import { now$ } from "../calendar/now";
 import { useBehavior } from "../useBehavior";
 import { useCanSchedule } from "./useCanSchedule";
@@ -36,64 +37,6 @@ import styles from "./UpcomingMeetings.module.css";
 
 interface UpcomingMeetingsProps {
   client: MatrixClient;
-}
-
-function formatRelativeTime(
-  scheduledStart: number,
-  now: number,
-  t: (key: string, options?: Record<string, string>) => string,
-): { text: string; urgent: boolean } {
-  const diff = scheduledStart - now;
-
-  if (diff <= 0) {
-    return { text: t("meetings.in_progress"), urgent: true };
-  }
-
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(minutes / 60);
-
-  if (minutes < 60) {
-    return {
-      text: t("meetings.starts_in", { time: `${minutes}m` }),
-      urgent: true,
-    };
-  }
-
-  const startDate = new Date(scheduledStart);
-  const today = new Date(now);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const timeStr = startDate.toLocaleTimeString("default", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  if (hours < 24 && startDate.getDate() === today.getDate()) {
-    return {
-      text: t("meetings.today_at", { time: timeStr }),
-      urgent: false,
-    };
-  }
-
-  if (
-    startDate.getDate() === tomorrow.getDate() &&
-    startDate.getMonth() === tomorrow.getMonth()
-  ) {
-    return {
-      text: t("meetings.tomorrow_at", { time: timeStr }),
-      urgent: false,
-    };
-  }
-
-  const dateStr = startDate.toLocaleDateString("default", {
-    month: "short",
-    day: "numeric",
-  });
-  return {
-    text: t("meetings.date_at", { date: dateStr, time: timeStr }),
-    urgent: false,
-  };
 }
 
 // Initial value for the duration select: the meeting's stored duration when
@@ -116,7 +59,7 @@ interface MeetingTileProps {
 }
 
 const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const calendar = Config.get().calendar;
   const durationOptions =
     calendar?.duration_options ?? CALENDAR_DEFAULTS.duration_options;
@@ -125,7 +68,12 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
     CALENDAR_DEFAULTS.default_duration_minutes;
   const roomEncryptionSystem = useRoomEncryptionSystem(meeting.room.roomId);
   const now = useBehavior(now$);
-  const { text, urgent } = formatRelativeTime(meeting.scheduledStart, now, t);
+  const { text, urgent } = formatRelativeStart(
+    i18n.language,
+    t,
+    meeting.scheduledStart,
+    now,
+  );
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -399,14 +347,6 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
     </div>
   );
 };
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
 
 export const UpcomingMeetings: FC<UpcomingMeetingsProps> = ({ client }) => {
   const { t } = useTranslation();
