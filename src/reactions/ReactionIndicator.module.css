@@ -3,14 +3,12 @@
   background-color: #00000030;
   border-radius: var(--cpd-radius-pill-effect);
   box-shadow: 0 0 var(--cpd-space-2x) #00000040;
-  background: "ffffff40";
   backdrop-filter: blur(10px);
   outline: var(--cpd-border-width-1) solid var(--cpd-color-alpha-gray-400);
   outline-offset: calc(-1 * var(--cpd-border-width-1));
 }
 
 .reactionIndicatorWidget > p {
-  padding: none;
   margin-top: auto;
   margin-bottom: auto;
   width: 3em;
