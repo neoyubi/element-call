@@ -69,11 +69,6 @@ describe("buildVEvent golden documents", () => {
         "ATTENDEE;CN=Sam Guest;RSVP=TRUE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION:",
         " mailto:guest@example.com",
         "STATUS:CONFIRMED",
-        "BEGIN:VALARM",
-        "ACTION:DISPLAY",
-        "TRIGGER:-PT10M",
-        "DESCRIPTION:Appointment",
-        "END:VALARM",
         "END:VEVENT",
         "END:VCALENDAR",
         "",
@@ -244,6 +239,47 @@ describe("date-time rendering", () => {
   });
 });
 
+describe("the optional alarm", () => {
+  test("no alarm is written by default", () => {
+    assert.ok(!buildVEvent(baseEvent()).includes("BEGIN:VALARM"));
+  });
+
+  test("a configured lead time writes a display alarm", async () => {
+    process.env.ICS_ALARM_MINUTES = "15";
+    try {
+      const { buildVEvent: withAlarm } = await import("./ics.mjs?alarm");
+      const lines = logicalLines(withAlarm(baseEvent()));
+
+      assert.deepEqual(
+        lines.slice(
+          lines.indexOf("BEGIN:VALARM"),
+          lines.indexOf("END:VALARM") + 1,
+        ),
+        [
+          "BEGIN:VALARM",
+          "ACTION:DISPLAY",
+          "TRIGGER:-PT15M",
+          "DESCRIPTION:Appointment",
+          "END:VALARM",
+        ],
+      );
+    } finally {
+      delete process.env.ICS_ALARM_MINUTES;
+    }
+  });
+
+  test("a lead time of zero writes no alarm", async () => {
+    process.env.ICS_ALARM_MINUTES = "0";
+    try {
+      const { buildVEvent: noAlarm } = await import("./ics.mjs?alarm-zero");
+
+      assert.ok(!noAlarm(baseEvent()).includes("BEGIN:VALARM"));
+    } finally {
+      delete process.env.ICS_ALARM_MINUTES;
+    }
+  });
+});
+
 describe("calendar user parameters", () => {
   // RFC 5545 section 3.1.1: only a quoted-string may contain these characters,
   // and the TEXT backslash escapes are not defined for parameter values.
@@ -310,17 +346,6 @@ describe("calendar user parameters", () => {
 // assertion below is rewritten in the same commit rather than quietly passing.
 describe("known gaps (deliberate fences)", () => {
   const ics = () => buildVEvent(baseEvent());
-
-  test("fence: the alarm is unconditional and has no UID", () => {
-    const lines = logicalLines(ics());
-
-    assert.ok(lines.includes("TRIGGER:-PT10M"));
-    const alarm = lines.slice(
-      lines.indexOf("BEGIN:VALARM"),
-      lines.indexOf("END:VALARM"),
-    );
-    assert.ok(!alarm.some((line) => line.startsWith("UID:")));
-  });
 
   test("fence: no CREATED, LAST-MODIFIED, TRANSP or CLASS", () => {
     const lines = logicalLines(ics());

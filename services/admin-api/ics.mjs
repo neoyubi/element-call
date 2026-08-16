@@ -17,6 +17,13 @@
 // neutral default when unset.
 const PRODID = `-//${process.env.SERVER_NAME || "Element Call"}//Element Call//EN`;
 
+// Optional display alarm, given in minutes before the start. Unset or zero
+// emits no VALARM at all, which is the default: a reminder is a personal
+// preference, several clients strip an incoming alarm outright, and those that
+// keep it let it override the reader's own default. The mail worker sends the
+// reminder that actually reaches an attendee.
+const ALARM_MINUTES = parseInt(process.env.ICS_ALARM_MINUTES || "0", 10);
+
 // Strip raw CR/LF (no untrusted line breaks may reach a property line) and
 // escape the RFC 5545 TEXT specials. Order matters: escape backslash first.
 function escapeText(value) {
@@ -142,14 +149,13 @@ export function buildVEvent({
 
   lines.push("STATUS:CONFIRMED");
 
-  // A 10-minute display reminder. (An alarm on the organizer's copy notifies
-  // the calendar owner, not the attendees, so attendee reminders are handled
-  // out of band by the mail worker.)
-  lines.push("BEGIN:VALARM");
-  lines.push("ACTION:DISPLAY");
-  lines.push("TRIGGER:-PT10M");
-  lines.push(`DESCRIPTION:${escapeText(summary)}`);
-  lines.push("END:VALARM");
+  if (ALARM_MINUTES > 0) {
+    lines.push("BEGIN:VALARM");
+    lines.push("ACTION:DISPLAY");
+    lines.push(`TRIGGER:-PT${ALARM_MINUTES}M`);
+    lines.push(`DESCRIPTION:${escapeText(summary)}`);
+    lines.push("END:VALARM");
+  }
 
   lines.push("END:VEVENT");
   lines.push("END:VCALENDAR");
