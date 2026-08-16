@@ -17,8 +17,12 @@ process.env.CALDAV_URL_BASE = CALDAV_BASE;
 process.env.CALDAV_USER = "calendar@example.com";
 process.env.CALDAV_PASSWORD = "s3cret-app-password";
 
-const { createMeetingRoom, deleteMeetingRoom, updateMeetingRoom } =
-  await import("./server.mjs");
+const {
+  createMeetingRoom,
+  deleteMeetingRoom,
+  getCorsHeaders,
+  updateMeetingRoom,
+} = await import("./server.mjs");
 
 const START = Date.UTC(2026, 8, 1, 12, 0, 0);
 const END = Date.UTC(2026, 8, 1, 12, 30, 0);
@@ -99,6 +103,32 @@ function scriptState(meeting) {
 beforeEach(install);
 afterEach(() => {
   globalThis.fetch = realFetch;
+});
+
+describe("cross-origin headers", () => {
+  // Every route this service answers has to be listed, or a browser refuses
+  // the request at preflight while curl succeeds, which hides the defect.
+  test("every method the service answers is advertised", () => {
+    const advertised = getCorsHeaders()
+      ["Access-Control-Allow-Methods"].split(",")
+      .map((method) => method.trim());
+
+    assert.deepEqual(advertised.sort(), [
+      "DELETE",
+      "GET",
+      "OPTIONS",
+      "POST",
+      "PUT",
+    ]);
+  });
+
+  test("an origin is echoed only when it is on the allow list", () => {
+    assert.equal(
+      "Access-Control-Allow-Origin" in
+        getCorsHeaders("https://call.example.com"),
+      false,
+    );
+  });
 });
 
 describe("updateMeetingRoom merges request over stored state", () => {
