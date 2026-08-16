@@ -1,8 +1,12 @@
 // iCalendar (RFC 5545) generation for meeting invitations.
 //
 // Dependency-free: produces a complete VCALENDAR string for a single VEVENT,
-// suitable for PUTting to a CalDAV collection. SOGo then dispatches the iMIP
-// REQUEST/CANCEL emails to the attendees.
+// suitable for PUTting to a CalDAV collection. A scheduling-aware CalDAV
+// server derives the iTIP message from the operation itself — a PUT carrying
+// ATTENDEE properties is a REQUEST, a DELETE is a CANCEL — and dispatches the
+// mail, which is why no METHOD property appears below: RFC 4791 §4.1 forbids
+// one in a stored calendar object, and servers that enforce it reject the
+// whole resource.
 //
 // All caller-supplied text is sanitized: raw CR/LF are stripped (header
 // injection guard) and the RFC 5545 special characters (backslash, semicolon,
@@ -88,16 +92,12 @@ function dtstamp() {
 }
 
 // buildVEvent({
-//   uid, sequence, method, startMs, endMs, summary, description,
+//   uid, sequence, startMs, endMs, summary, description,
 //   location, organizerEmail, attendeeEmails, tzid
 // }) -> VCALENDAR string (CRLF line endings).
-//
-// method: "REQUEST" creates/updates (STATUS:CONFIRMED);
-//         "CANCEL" cancels (STATUS:CANCELLED).
 export function buildVEvent({
   uid,
   sequence = 0,
-  method = "REQUEST",
   startMs,
   endMs,
   summary,
@@ -107,7 +107,6 @@ export function buildVEvent({
   attendeeEmails = [],
   tzid,
 }) {
-  const isCancel = method === "CANCEL";
   const cleanUid = sanitizeRaw(uid);
   const cleanTzid = tzid ? sanitizeRaw(tzid) : null;
   const tzParam = cleanTzid ? `;TZID=${cleanTzid}` : "";
@@ -117,7 +116,6 @@ export function buildVEvent({
   lines.push(`PRODID:${PRODID}`);
   lines.push("VERSION:2.0");
   lines.push("CALSCALE:GREGORIAN");
-  lines.push(`METHOD:${isCancel ? "CANCEL" : "REQUEST"}`);
   lines.push("BEGIN:VEVENT");
   lines.push(`UID:${cleanUid}`);
   lines.push(`SEQUENCE:${Number.isInteger(sequence) ? sequence : 0}`);
@@ -144,17 +142,16 @@ export function buildVEvent({
     );
   }
 
-  lines.push(`STATUS:${isCancel ? "CANCELLED" : "CONFIRMED"}`);
+  lines.push("STATUS:CONFIRMED");
 
-  // A 10-minute display reminder. (Email alarms in SOGo notify the calendar
-  // owner, not attendees, so attendee reminders are handled out of band.)
-  if (!isCancel) {
-    lines.push("BEGIN:VALARM");
-    lines.push("ACTION:DISPLAY");
-    lines.push("TRIGGER:-PT10M");
-    lines.push(`DESCRIPTION:${escapeText(summary)}`);
-    lines.push("END:VALARM");
-  }
+  // A 10-minute display reminder. (An alarm on the organizer's copy notifies
+  // the calendar owner, not the attendees, so attendee reminders are handled
+  // out of band by the mail worker.)
+  lines.push("BEGIN:VALARM");
+  lines.push("ACTION:DISPLAY");
+  lines.push("TRIGGER:-PT10M");
+  lines.push(`DESCRIPTION:${escapeText(summary)}`);
+  lines.push("END:VALARM");
 
   lines.push("END:VEVENT");
   lines.push("END:VCALENDAR");

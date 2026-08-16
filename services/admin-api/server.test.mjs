@@ -328,27 +328,22 @@ describe("deleteMeetingRoom", () => {
     );
   });
 
-  // These fences change when the cancellation stops being written as a calendar
-  // revision and becomes a plain resource removal.
-  test("fence: a cancellation is written before the resource is removed", async () => {
+  // The removal is the whole cancellation: the server inspects the stored
+  // attendees on DELETE and sends the iTIP CANCEL itself. A revision written
+  // first would reach the attendees as an update to a meeting being cancelled.
+  test("the cancellation is a single removal, with nothing written first", async () => {
     scriptState(storedMeeting());
 
     await deleteMeetingRoom(ROOM_ID);
 
     assert.deepEqual(
       caldavCalls().map((call) => call.method),
-      ["PUT", "DELETE"],
+      ["DELETE"],
     );
-    assert.match(caldavCalls()[0].ics, /^METHOD:CANCEL$/m);
-    assert.match(caldavCalls()[0].ics, /^SEQUENCE:5$/m);
-  });
-
-  test("fence: the cancellation is titled with the raw booking identifier", async () => {
-    scriptState(storedMeeting());
-
-    await deleteMeetingRoom(ROOM_ID);
-
-    assert.match(caldavCalls()[0].ics, /^SUMMARY:b-1$/m);
+    assert.equal(
+      caldavCalls()[0].url,
+      `${CALDAV_BASE}/booking-b-1%40example.com.ics`,
+    );
   });
 });
 

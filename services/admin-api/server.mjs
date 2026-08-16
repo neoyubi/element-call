@@ -213,11 +213,10 @@ async function synapseRequest(path, options = {}) {
 
 // --- Calendar (best-effort) ---
 //
-// Write or cancel the SOGo calendar event for a meeting. Failures are logged
+// Write or remove the calendar event for a meeting. Failures are logged
 // (booking_id only) and swallowed: the calendar is best-effort and never fails
 // the room operation. No-ops when CalDAV is not configured.
 async function writeCalendarEvent({
-  method,
   bookingId,
   sequence,
   startMs,
@@ -237,7 +236,6 @@ async function writeCalendarEvent({
     const ics = buildVEvent({
       uid,
       sequence,
-      method,
       startMs,
       endMs,
       summary: roomName,
@@ -250,45 +248,22 @@ async function writeCalendarEvent({
     await putEvent({ uid, ics });
   } catch (err) {
     console.warn(
-      `Calendar ${method} failed for booking ${bookingId}: ${err.message}`,
+      `Calendar write failed for booking ${bookingId}: ${err.message}`,
     );
   }
 }
 
-async function cancelCalendarEvent({
-  bookingId,
-  sequence,
-  startMs,
-  endMs,
-  roomName,
-  meetLink,
-  timezone,
-  organizerEmail,
-  prospectEmail,
-}) {
+// Remove the calendar resource for a cancelled meeting. Deleting is the whole
+// cancellation: RFC 6638 §3.2.1.3 makes an organizer DELETE the operation that
+// inspects each ATTENDEE and sends the iTIP CANCEL. Writing a cancellation
+// revision first would put a second, contradictory "updated invitation" in
+// front of it. A 404 is treated as already-gone.
+async function cancelCalendarEvent(bookingId) {
   if (!caldavConfigured()) {
     return;
   }
-  const uid = bookingUid(bookingId);
-  const attendeeEmails = [organizerEmail, prospectEmail].filter(Boolean);
   try {
-    // Push a CANCEL revision so SOGo emails the attendees, then remove the
-    // resource. A 404 on delete is treated as already-gone.
-    const ics = buildVEvent({
-      uid,
-      sequence,
-      method: "CANCEL",
-      startMs,
-      endMs,
-      summary: roomName,
-      description: roomName,
-      location: meetLink,
-      organizerEmail: CALDAV_USER,
-      attendeeEmails,
-      tzid: timezone,
-    });
-    await putEvent({ uid, ics });
-    await deleteEvent({ uid });
+    await deleteEvent({ uid: bookingUid(bookingId) });
   } catch (err) {
     console.warn(
       `Calendar cancel failed for booking ${bookingId}: ${err.message}`,
@@ -470,7 +445,6 @@ export async function createMeetingRoom(body) {
 
   // Write the calendar invite (best-effort; never fails room creation).
   await writeCalendarEvent({
-    method: "REQUEST",
     bookingId: booking_id,
     sequence: 0,
     startMs: scheduled_start,
@@ -625,7 +599,6 @@ export async function updateMeetingRoom(roomId, body) {
 
   // Push an updated calendar invite with the bumped SEQUENCE (best-effort).
   await writeCalendarEvent({
-    method: "REQUEST",
     bookingId: newState.booking_id,
     sequence,
     startMs: newStart,
@@ -642,21 +615,11 @@ export async function updateMeetingRoom(roomId, body) {
 }
 
 export async function deleteMeetingRoom(roomId) {
-  // Read the meeting state first so a CANCEL invite can be emitted before the
-  // room (and its state) are purged.
+  // Read the meeting state first: once the room is purged the booking id is
+  // gone, and it is what addresses the calendar resource.
   const current = await readMeetingState(roomId);
   if (current?.booking_id) {
-    await cancelCalendarEvent({
-      bookingId: current.booking_id,
-      sequence: (Number.isInteger(current.sequence) ? current.sequence : 0) + 1,
-      startMs: current.scheduled_start,
-      endMs: current.scheduled_end,
-      roomName: current.booking_id,
-      meetLink: current.meet_link || "",
-      timezone: current.timezone || "Europe/Amsterdam",
-      organizerEmail: current.organizer_email,
-      prospectEmail: current.prospect_email,
-    });
+    await cancelCalendarEvent(current.booking_id);
   }
 
   // Use Synapse admin API to purge the room entirely

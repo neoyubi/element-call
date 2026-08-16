@@ -51,7 +51,6 @@ describe("buildVEvent golden documents", () => {
         "PRODID:-//example.com//Element Call//EN",
         "VERSION:2.0",
         "CALSCALE:GREGORIAN",
-        "METHOD:REQUEST",
         "BEGIN:VEVENT",
         "UID:booking-1@example.com",
         "SEQUENCE:3",
@@ -80,13 +79,11 @@ describe("buildVEvent golden documents", () => {
     );
   });
 
-  test("a CANCEL flips METHOD and STATUS and drops the alarm", () => {
-    const ics = buildVEvent(baseEvent({ method: "CANCEL" }));
-    const lines = logicalLines(ics);
-
-    assert.ok(lines.includes("METHOD:CANCEL"));
-    assert.ok(lines.includes("STATUS:CANCELLED"));
-    assert.ok(!lines.some((line) => line.startsWith("BEGIN:VALARM")));
+  // RFC 4791 section 4.1: a calendar object resource MUST NOT carry METHOD.
+  // The server derives the iTIP message from the operation instead, and the
+  // stricter implementations reject the whole resource when it is present.
+  test("no METHOD property is written to the collection", () => {
+    assert.ok(!/^METHOD:/m.test(unfold(buildVEvent(baseEvent()))));
   });
 
   test("a reschedule keeps the UID and carries the higher SEQUENCE", () => {
@@ -215,7 +212,7 @@ describe("line folding", () => {
     const ics = buildVEvent(baseEvent({ summary }));
 
     assert.ok(!ics.includes("�"));
-    assert.equal(ics.split("\r\n")[11], `SUMMARY:${"s".repeat(66)}`);
+    assert.ok(ics.split("\r\n").includes(`SUMMARY:${"s".repeat(66)}`));
     assert.ok(logicalLines(ics).includes(`SUMMARY:${summary}`));
   });
 });

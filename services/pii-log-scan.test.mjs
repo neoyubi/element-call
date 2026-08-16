@@ -174,7 +174,10 @@ function caughtMessageViolations(source) {
 // Pinned as an equality rather than tolerated, so removing one without emptying
 // this list fails just as loudly as adding a new one.
 const PENDING_MESSAGE_LOGS = {
-  "admin-api/server.mjs": ["Calendar", "Calendar cancel failed for booking"],
+  "admin-api/server.mjs": [
+    "Calendar write failed for booking",
+    "Calendar cancel failed for booking",
+  ],
   "meeting-worker/worker.mjs": ["Retention: CalDAV delete failed for booking"],
 };
 
