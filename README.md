@@ -249,4 +249,9 @@ you must offer them the corresponding source. The Source link in the
 in-app license footer is driven by `branding.source_code_url`; set it
 to your public fork before deploying.
 
+Left unset it falls back to this fork,
+<https://github.com/neoyubi/neo-call>, so the link always resolves to
+the source a deployment was actually built from rather than to upstream,
+which would not correspond to what its users are running.
+
 Copyright and attribution are covered at the top of this file.

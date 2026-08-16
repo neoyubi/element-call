@@ -3,7 +3,7 @@ import { Text } from "@vector-im/compound-web";
 
 import { Config } from "../config/Config";
 
-const DEFAULT_SOURCE_CODE_URL = "https://github.com/element-hq/element-call";
+const DEFAULT_SOURCE_CODE_URL = "https://github.com/neoyubi/neo-call";
 
 export const LicenseSettingsTab: FC = () => {
   const sourceCodeUrl =
@@ -34,11 +34,7 @@ export const LicenseSettingsTab: FC = () => {
       <Text>
         The complete source code for this deployment, including any
         modifications, is available at:{" "}
-        <a
-          href={sourceCodeUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href={sourceCodeUrl} target="_blank" rel="noopener noreferrer">
           {sourceCodeUrl.replace(/^https?:\/\//, "")}
         </a>
       </Text>

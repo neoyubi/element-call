@@ -6,7 +6,7 @@ import { LicenseSettingsTab } from "./settings/LicenseSettingsTab";
 import { Config } from "./config/Config";
 import styles from "./LicenseFooter.module.css";
 
-const DEFAULT_SOURCE_CODE_URL = "https://github.com/element-hq/element-call";
+const DEFAULT_SOURCE_CODE_URL = "https://github.com/neoyubi/neo-call";
 
 export const LicenseFooter: FC = () => {
   const [open, setOpen] = useState(false);
@@ -36,11 +36,7 @@ export const LicenseFooter: FC = () => {
           </Text>
         )}
         <Text size="sm" as="span" className={styles.separator}>
-          <a
-            href={sourceCodeUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a href={sourceCodeUrl} target="_blank" rel="noopener noreferrer">
             Source
           </a>
         </Text>
