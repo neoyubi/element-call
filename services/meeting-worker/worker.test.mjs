@@ -288,10 +288,11 @@ describe("notification branches", () => {
     assert.equal(statePuts().length, 0);
   });
 
-  // MEETING_DRY_RUN gates the reschedule notice and the retention purge, but
-  // the reminder branch never consults it, so a dry run still sends real
-  // reminder mail. Pinned so the asymmetry is visible rather than assumed away.
-  test("fence: a dry run suppresses the reschedule notice but not the reminder", async () => {
+  // A dry run must be safe to point at production data, so every branch that
+  // can reach a recipient consults the flag — reminder included. Nothing is
+  // stamped either, so the run leaves no trace that would suppress the real
+  // send afterwards.
+  test("a dry run sends no mail of any kind and stamps nothing", async () => {
     process.env.MEETING_DRY_RUN = "1";
     try {
       const dryRun = await import("./worker.mjs?dry-run");
@@ -302,13 +303,8 @@ describe("notification branches", () => {
 
       await dryRun.processMeetingEmails();
 
-      assert.deepEqual(
-        mail().map((message) => message.kind),
-        ["reminder"],
-      );
-      assert.equal(statePuts().length, 1);
-      assert.equal("reschedule_notified" in statePuts()[0].body, false);
-      assert.ok(statePuts()[0].body.reminder_sent > 0);
+      assert.deepEqual(mail(), []);
+      assert.deepEqual(statePuts(), []);
     } finally {
       delete process.env.MEETING_DRY_RUN;
     }

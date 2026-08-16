@@ -360,6 +360,10 @@ export async function processMeetingEmails() {
             console.warn(
               `Reminder: meeting has no recipient (booking ${bookingId}); marking sent`,
             );
+          } else if (MEETING_DRY_RUN) {
+            console.log(
+              `Reminder (dry-run): would send for booking ${bookingId} (${recipients.length} recipient(s))`,
+            );
           } else {
             try {
               await sendReminder({

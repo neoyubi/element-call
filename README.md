@@ -130,17 +130,17 @@ says in its log whether the server advertises it. See
 
 ### Mail and retention (`services/meeting-worker/`)
 
-| Variable                      | Default | Purpose                                                                                                                                                |
-| ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SMTP_HOST`                   | unset   | Mail server host                                                                                                                                       |
-| `SMTP_PORT`                   | `587`   | Mail server port                                                                                                                                       |
-| `SMTP_SECURE`                 | off     | Set to `1` for implicit TLS on port 465, otherwise STARTTLS                                                                                            |
-| `SMTP_USER` / `SMTP_PASSWORD` | unset   | Credentials. Omit both for an unauthenticated relay                                                                                                    |
-| `SMTP_FROM`                   | unset   | Envelope sender, e.g. `calendar@example.com`                                                                                                           |
-| `REMINDER_LANG`               | `en`    | Language of reminder and reschedule mail: `en`, `nl` or `de`                                                                                           |
-| `POLL_INTERVAL_MS`            | `60000` | How often the mail pass runs                                                                                                                           |
-| `MEETING_RETENTION_DAYS`      | `30`    | Days after a meeting ends before names, addresses and the join link are erased from room state and the calendar event is removed                       |
-| `MEETING_DRY_RUN`             | off     | Set to `1` to log what the reschedule notice and the retention purge would do without doing it. Reminder mail is not covered by this and is still sent |
+| Variable                      | Default | Purpose                                                                                                                            |
+| ----------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `SMTP_HOST`                   | unset   | Mail server host                                                                                                                   |
+| `SMTP_PORT`                   | `587`   | Mail server port                                                                                                                   |
+| `SMTP_SECURE`                 | off     | Set to `1` for implicit TLS on port 465, otherwise STARTTLS                                                                        |
+| `SMTP_USER` / `SMTP_PASSWORD` | unset   | Credentials. Omit both for an unauthenticated relay                                                                                |
+| `SMTP_FROM`                   | unset   | Envelope sender, e.g. `calendar@example.com`                                                                                       |
+| `REMINDER_LANG`               | `en`    | Language of reminder and reschedule mail: `en`, `nl` or `de`                                                                       |
+| `POLL_INTERVAL_MS`            | `60000` | How often the mail pass runs                                                                                                       |
+| `MEETING_RETENTION_DAYS`      | `30`    | Days after a meeting ends before names, addresses and the join link are erased from room state and the calendar event is removed   |
+| `MEETING_DRY_RUN`             | off     | Set to `1` to log what the reminder, the reschedule notice and the retention purge would do, without sending mail or writing state |
 
 Reminder and reschedule mail is sent as HTML with a plain-text alternative.
 These control how it looks; all are optional, and an unset one is simply not
