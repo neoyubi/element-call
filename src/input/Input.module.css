@@ -36,6 +36,32 @@ Please see LICENSE in the repository root for full details.
   border: 1px solid var(--cpd-color-border-interactive-primary);
 }
 
+.inputField.invalid {
+  border-color: var(--cpd-color-border-critical-primary);
+}
+
+/* Wraps a text field together with its supporting text. The field's own box is
+a flex row shared with the floating label, so a description or an error placed
+inside it would be laid out beside the input and collide with the label. */
+.fieldGroup {
+  display: block;
+  /* Takes over the field's role as the flex child of a row. */
+  flex: 1;
+  min-width: 0;
+}
+
+.fieldDescription {
+  margin-block: var(--cpd-space-2x) 0;
+  color: var(--cpd-color-text-secondary);
+  font: var(--cpd-font-body-sm-regular);
+}
+
+.fieldError {
+  margin-block: var(--cpd-space-2x) 0;
+  color: var(--cpd-color-text-critical-primary);
+  font: var(--cpd-font-body-sm-medium);
+}
+
 .inputField input,
 .inputField textarea {
   font-weight: 400;
@@ -119,7 +145,13 @@ Please see LICENSE in the repository root for full details.
 .inputField textarea:focus + label,
 .inputField textarea:not(:placeholder-shown) + label,
 .inputField.prefix textarea + label {
-  background-color: var(--cpd-color-bg-canvas-default);
+  /* Floated, the label straddles the top border and has to paint over it in
+  the colour of whatever surface the field sits on. Canvas is the common case;
+  a card or a tinted panel sets --input-label-surface to its own background. */
+  background-color: var(
+    --input-label-surface,
+    var(--cpd-color-bg-canvas-default)
+  );
   transition:
     font-size 0.25s ease-out 0s,
     color 0.25s ease-out 0s,

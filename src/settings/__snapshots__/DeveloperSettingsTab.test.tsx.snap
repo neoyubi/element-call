@@ -21,19 +21,23 @@ exports[`DeveloperSettingsTab > renders and matches snapshot 1`] = `
     class="fieldRow"
   >
     <div
-      class="field inputField"
+      class="fieldGroup"
     >
-      <input
-        id="duplicateTiles"
-        min="0"
-        type="number"
-        value="0"
-      />
-      <label
-        for="duplicateTiles"
+      <div
+        class="field inputField"
       >
-        Number of additional tile copies per participant
-      </label>
+        <input
+          id="duplicateTiles"
+          min="0"
+          type="number"
+          value="0"
+        />
+        <label
+          for="duplicateTiles"
+        >
+          Number of additional tile copies per participant
+        </label>
+      </div>
     </div>
   </div>
   <div

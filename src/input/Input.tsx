@@ -64,6 +64,11 @@ interface InputFieldProps {
   checked?: boolean;
   className?: string;
   description?: string | ReactNode;
+  /**
+   * Marks the control invalid and shows the message beneath it. Takes
+   * precedence over any `aria-invalid` passed in.
+   */
+  error?: string;
   disabled?: boolean;
   required?: boolean;
   // this is a hack. Those variables should be part of `HTMLAttributes<HTMLInputElement> | HTMLAttributes<HTMLTextAreaElement>`
@@ -93,19 +98,37 @@ export const InputField: FC<InputFieldProps> = ({
   prefix,
   suffix,
   description,
+  error,
   disabled,
   min,
+  "aria-invalid": ariaInvalid,
   ...rest
 }) => {
   const descriptionId = useId();
+  const errorId = `${descriptionId}-error`;
+  const checkbox = type === "checkbox";
+  const invalid = error !== undefined;
 
-  return (
+  const describedBy =
+    [description ? descriptionId : undefined, invalid ? errorId : undefined]
+      .filter((value) => value !== undefined)
+      .join(" ") || undefined;
+
+  const shared = {
+    id,
+    disabled,
+    "aria-describedby": describedBy,
+    "aria-invalid": invalid ? true : ariaInvalid,
+  };
+
+  const control = (
     <Field
       className={classNames(
-        type === "checkbox" ? styles.checkboxField : styles.inputField,
+        checkbox ? styles.checkboxField : styles.inputField,
         {
           [styles.prefix]: !!prefix,
           [styles.disabled]: disabled,
+          [styles.invalid]: !checkbox && invalid,
         },
         className,
       )}
@@ -115,27 +138,23 @@ export const InputField: FC<InputFieldProps> = ({
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         <textarea
-          id={id}
           ref={ref as ForwardedRef<HTMLTextAreaElement>}
-          disabled={disabled}
-          aria-describedby={description ? descriptionId : undefined}
+          {...shared}
           {...rest}
         />
       ) : (
         <input
-          id={id}
           ref={ref as ForwardedRef<HTMLInputElement>}
           type={type}
           checked={checked}
-          disabled={disabled}
-          aria-describedby={description ? descriptionId : undefined}
           min={min}
+          {...shared}
           {...rest}
         />
       )}
 
       <label htmlFor={id}>
-        {type === "checkbox" && (
+        {checkbox && (
           <div className={styles.checkbox}>
             <CheckIcon />
           </div>
@@ -143,7 +162,8 @@ export const InputField: FC<InputFieldProps> = ({
         {label}
       </label>
       {suffix && <span>{suffix}</span>}
-      {description && (
+      {/* A checkbox field wraps, so its description can share the box. */}
+      {checkbox && description && (
         <p
           id={descriptionId}
           className={
@@ -156,6 +176,31 @@ export const InputField: FC<InputFieldProps> = ({
         </p>
       )}
     </Field>
+  );
+
+  if (checkbox) return control;
+
+  // The text field's box is a flex row holding the control and its floating
+  // label, so anything else placed inside it is laid out beside the input and
+  // ends up underneath the label. Supporting text belongs below the box.
+  //
+  // The wrapper is unconditional: introducing it only once there is something
+  // to say would replace the field's DOM node the moment an error appeared or
+  // cleared, taking the caret and the focus with it.
+  return (
+    <div className={styles.fieldGroup}>
+      {control}
+      {description && (
+        <p id={descriptionId} className={styles.fieldDescription}>
+          {description}
+        </p>
+      )}
+      {invalid && (
+        <p id={errorId} className={styles.fieldError}>
+          {error}
+        </p>
+      )}
+    </div>
   );
 };
 
