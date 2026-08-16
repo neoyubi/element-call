@@ -27,6 +27,8 @@ import { useRoomEncryptionSystem } from "../e2ee/sharedKeyManagement";
 import { getRelativeRoomUrl } from "../utils/matrix";
 import { Config } from "../config/Config";
 import { CALENDAR_DEFAULTS } from "../config/ConfigOptions";
+import { now$ } from "../calendar/now";
+import { useBehavior } from "../useBehavior";
 import { useCanSchedule } from "./useCanSchedule";
 import { parseStart, formatDate, formatTime } from "./dateFormat";
 import { MiniCalendar } from "./MiniCalendar";
@@ -38,9 +40,9 @@ interface UpcomingMeetingsProps {
 
 function formatRelativeTime(
   scheduledStart: number,
+  now: number,
   t: (key: string, options?: Record<string, string>) => string,
 ): { text: string; urgent: boolean } {
-  const now = Date.now();
   const diff = scheduledStart - now;
 
   if (diff <= 0) {
@@ -58,7 +60,7 @@ function formatRelativeTime(
   }
 
   const startDate = new Date(scheduledStart);
-  const today = new Date();
+  const today = new Date(now);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
@@ -122,7 +124,8 @@ const MeetingTile: FC<MeetingTileProps> = ({ meeting, client, canModify }) => {
     calendar?.default_duration_minutes ??
     CALENDAR_DEFAULTS.default_duration_minutes;
   const roomEncryptionSystem = useRoomEncryptionSystem(meeting.room.roomId);
-  const { text, urgent } = formatRelativeTime(meeting.scheduledStart, t);
+  const now = useBehavior(now$);
+  const { text, urgent } = formatRelativeTime(meeting.scheduledStart, now, t);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
