@@ -38,6 +38,9 @@ export default {
     // https://github.com/webpro-nl/knip/issues/766
     "@vector-im/compound-web",
     "matrix-widget-api",
+    // Declared and installed by services/meeting-worker, which ships as its own
+    // image and is not part of this package's dependency tree
+    "nodemailer",
   ],
   ignoreExportsUsedInFile: true,
 } satisfies KnipConfig;
