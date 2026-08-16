@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
 
-import { CalDavError, deleteEvent, isConfigured, putEvent } from "./caldav.mjs";
+import {
+  CalDavError,
+  deleteEvent,
+  isConfigured,
+  probeScheduling,
+  putEvent,
+} from "./caldav.mjs";
 
 const BASE =
   "https://caldav.example.com/dav/calendar@example.com/Calendar/personal";
@@ -13,12 +19,18 @@ const ICS = "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n";
 const realFetch = globalThis.fetch;
 let calls;
 
-// Replace the global fetch with a recorder returning a scripted response.
+// Replace the global fetch with a recorder returning a scripted response: a
+// status, a { status, dav } pair, or an Error to reject with.
 function respondWith(response) {
   globalThis.fetch = async (url, options) => {
     calls.push({ url, ...options });
     if (response instanceof Error) throw response;
-    return { status: response, headers: new Headers() };
+    const { status, dav } =
+      typeof response === "number" ? { status: response } : response;
+    return {
+      status,
+      headers: new Headers(dav === undefined ? {} : { dav }),
+    };
   };
 }
 
@@ -215,6 +227,94 @@ describe("request headers (deliberate fence)", () => {
           !/^(if-match|if-none-match|prefer|schedule-)/i.test(header),
           `unexpected ${header} header`,
         );
+      }
+    }
+  });
+});
+
+describe("the startup feature check", () => {
+  const realConsole = { log: console.log, warn: console.warn };
+  let logged;
+
+  beforeEach(() => {
+    logged = [];
+    for (const channel of ["log", "warn"]) {
+      console[channel] = (...args) => logged.push(args.join(" "));
+    }
+  });
+
+  afterEach(() => {
+    Object.assign(console, realConsole);
+  });
+
+  test("asks the collection what it supports, exactly once", async () => {
+    respondWith({ status: 200, dav: "1, 3, calendar-access" });
+
+    await probeScheduling();
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].method, "OPTIONS");
+    assert.equal(calls[0].url, BASE);
+  });
+
+  test("reports a server that schedules automatically", async () => {
+    respondWith({
+      status: 200,
+      dav: "1, 3, calendar-access, calendar-auto-schedule",
+    });
+
+    await probeScheduling();
+
+    assert.ok(logged.some((line) => line.includes("schedules automatically")));
+  });
+
+  // Without this capability the whole premise of an attendee getting the
+  // meeting in their own calendar does not hold, and nothing else says so.
+  test("reports a server that does not, naming the consequence", async () => {
+    respondWith({ status: 200, dav: "1, 3, calendar-access" });
+
+    await probeScheduling();
+
+    assert.ok(
+      logged.some((line) => line.includes("does not schedule automatically")),
+    );
+    assert.ok(logged.some((line) => line.includes("emailed invitations")));
+  });
+
+  test("an unreachable or rejecting server is reported, not thrown", async () => {
+    respondWith(new Error("getaddrinfo ENOTFOUND"));
+    await probeScheduling();
+    assert.equal(logged.length, 1);
+
+    logged = [];
+    respondWith({ status: 401 });
+    await probeScheduling();
+    assert.ok(logged.some((line) => line.includes("401")));
+  });
+
+  test("an unconfigured calendar issues no request at all", async () => {
+    delete process.env.CALDAV_URL_BASE;
+    respondWith({ status: 200 });
+
+    await probeScheduling();
+
+    assert.equal(calls.length, 0);
+    assert.ok(logged.some((line) => line.includes("not configured")));
+  });
+
+  test("no log line quotes the collection URL or the credential", async () => {
+    for (const response of [
+      { status: 200, dav: "1, calendar-auto-schedule" },
+      { status: 401 },
+      new Error(`cannot reach ${BASE} as ${USER}:${PASSWORD}`),
+    ]) {
+      respondWith(response);
+      await probeScheduling();
+    }
+
+    for (const line of logged) {
+      for (const secret of [BASE, USER, PASSWORD]) {
+        assert.ok(!line.includes(secret), line);
       }
     }
   });

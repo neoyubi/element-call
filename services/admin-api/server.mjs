@@ -3,7 +3,12 @@ import { createHmac, randomBytes, pbkdf2 } from "node:crypto";
 
 import { authorizeRequest } from "./auth.mjs";
 import { buildVEvent } from "./ics.mjs";
-import { putEvent, deleteEvent, isConfigured as caldavConfigured } from "./caldav.mjs";
+import {
+  putEvent,
+  deleteEvent,
+  isConfigured as caldavConfigured,
+  probeScheduling,
+} from "./caldav.mjs";
 
 // --- Configuration ---
 const SYNAPSE_URL = process.env.SYNAPSE_URL || "http://localhost:8008";
@@ -897,5 +902,6 @@ if (import.meta.main) {
     console.log(
       `Scheduler auth: ${SCHEDULERS_ROOM_ID ? "enabled" : "disabled (service key only)"}`,
     );
+    void probeScheduling();
   });
 }

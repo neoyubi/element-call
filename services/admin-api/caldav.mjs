@@ -1,17 +1,24 @@
-// CalDAV client for writing meeting events to the shared SOGo calendar.
+// CalDAV client for writing meeting events to a shared calendar collection.
 //
-// admin-api PUTs a single .ics resource per booking; SOGo turns that into the
-// outbound iMIP invite/cancel email. Calendar writes are best-effort: the
-// caller logs failures (booking_id only) and never fails room creation on
-// account of CalDAV.
+// admin-api PUTs one .ics resource per booking. On a server implementing RFC
+// 6638 scheduling, that PUT is what produces the invitation: the server
+// derives the iTIP message from the operation itself and delivers it — into a
+// local attendee's own calendar where it can, and by mail where it cannot.
+// Calendar writes are best-effort: the caller logs failures (booking_id only)
+// and never fails a room operation on account of the calendar.
 //
 // Reads config from the environment by name:
-//   CALDAV_URL_BASE  e.g. https://<MAIL_HOST>/SOGo/dav/<user>/Calendar/personal
-//   CALDAV_USER      shared scheduling mailbox (Basic auth user)
-//   CALDAV_PASSWORD  app password (never logged)
+//   CALDAV_URL_BASE  the collection URL, e.g.
+//                    https://caldav.example.com/dav/calendar@example.com/Calendar/personal
+//   CALDAV_USER      the account that owns the collection (Basic auth user)
+//   CALDAV_PASSWORD  its password (never logged)
 //
 // The Authorization header and password are never logged.
 
+// Matches the convention used for the other outbound calls in this service:
+// five seconds for authentication, eight for the calendar. Not configurable —
+// a calendar write is best-effort, so a longer wait buys nothing but a slower
+// room operation.
 const CALDAV_TIMEOUT_MS = 8000;
 
 export class CalDavError extends Error {
@@ -29,8 +36,8 @@ function config() {
   return { base, user, password };
 }
 
-// True when CalDAV is configured. When false, callers should skip calendar
-// writes entirely (a clinic without SOGo still gets working rooms).
+// True when CalDAV is configured. When false, callers skip calendar writes
+// entirely: a deployment with no calendar server still gets working rooms.
 export function isConfigured() {
   const { base, user, password } = config();
   return Boolean(base && user && password);
@@ -112,4 +119,44 @@ export async function deleteEvent({ uid }) {
   if (resp.status !== 200 && resp.status !== 204) {
     throw new CalDavError(`CalDAV DELETE returned ${resp.status}`, resp.status);
   }
+}
+
+// One-shot startup probe. RFC 6638 requires a scheduling-aware server to
+// advertise "calendar-auto-schedule" among the compliance classes in its DAV
+// response header, and that capability is what puts a meeting straight into
+// the calendar of an attendee who has an account on the same server. Logging
+// it once turns an assumption into something an operator can read: without it,
+// attendees depend entirely on emailed invitations and on whatever their own
+// client chooses to do with one.
+export async function probeScheduling() {
+  if (!isConfigured()) {
+    console.log("Calendar: not configured, calendar writes are disabled");
+    return;
+  }
+
+  const { base, user, password } = config();
+  let resp;
+  try {
+    resp = await caldavFetch(base, {
+      method: "OPTIONS",
+      headers: { Authorization: authHeader(user, password) },
+    });
+  } catch {
+    console.warn("Calendar: could not reach the server to check its features");
+    return;
+  }
+
+  if (resp.status >= 400) {
+    console.warn(`Calendar: feature check rejected (status ${resp.status})`);
+    return;
+  }
+
+  const advertised = (resp.headers.get("dav") ?? "")
+    .split(",")
+    .map((token) => token.trim());
+  console.log(
+    advertised.includes("calendar-auto-schedule")
+      ? "Calendar: server schedules automatically, attendees with an account on it get the meeting in their own calendar"
+      : "Calendar: server does not schedule automatically, attendees depend on emailed invitations",
+  );
 }
