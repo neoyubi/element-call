@@ -62,7 +62,7 @@ export const AgendaView: FC<Props> = ({
     <div className={styles.agenda}>
       {days.map(([dayIndex, events]) => (
         <section key={dayIndex} className={styles.day}>
-          <Heading as="h3" size="sm" weight="semibold" className={styles.date}>
+          <Heading as="h2" size="sm" weight="semibold" className={styles.date}>
             {formatDay(i18n.language, addDays(rangeStart, dayIndex))}
           </Heading>
           <ul className={styles.meetings}>
