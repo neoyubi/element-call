@@ -1,9 +1,15 @@
 import { KnownMembership, type MatrixClient, type Room } from "matrix-js-sdk";
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { TooltipProvider } from "@vector-im/compound-web";
-import { type FC } from "react";
+import { type FC, type ReactElement } from "react";
 import i18n from "i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,6 +20,24 @@ import { mockConfig } from "../utils/test";
 import { CalendarPage } from "./CalendarPage";
 
 process.env.TZ = "Europe/Berlin";
+
+// The form is a page of its own and is tested as one; here only the times it
+// is handed matter.
+vi.mock("../home/ScheduleMeetingForm", () => ({
+  ScheduleMeetingForm: ({
+    initialDate,
+    initialTime,
+    initialDurationMinutes,
+  }: {
+    initialDate?: string;
+    initialTime?: string;
+    initialDurationMinutes?: number;
+  }): ReactElement => (
+    <span data-testid="form">
+      {`${initialDate} ${initialTime} ${initialDurationMinutes ?? "default"}`}
+    </span>
+  ),
+}));
 
 const ROOM_ID = "!a:example.org";
 const SCHEDULERS_ROOM = "!schedulers:example.org";
@@ -103,10 +127,68 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   calendarView.setValue(null);
 });
 
 describe("CalendarPage", () => {
+  it("opens the form on the length dragged out in the time grid", () => {
+    mockConfig({
+      calendar: { first_day_of_week: "monday" },
+      schedulers_room_id: SCHEDULERS_ROOM,
+    });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 0;
+    });
+    const { container } = renderCalendar(
+      "/calendar?view=day&date=2026-08-20",
+      true,
+    );
+    const column = container.querySelector<HTMLElement>(".column")!;
+    // One pixel per minute, so a clientY reads as minutes from midnight.
+    column.getBoundingClientRect = (): DOMRect =>
+      ({ top: 0, height: 1440 }) as DOMRect;
+
+    const press = (type: string, clientY: number): Event => {
+      const event = new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        clientY,
+        button: 0,
+      });
+      Object.defineProperties(event, {
+        pointerId: { value: 1 },
+        pointerType: { value: "mouse" },
+      });
+      return event;
+    };
+
+    act(() => {
+      fireEvent(
+        container.querySelectorAll<HTMLElement>(".slotButton")[10],
+        press("pointerdown", 630),
+      );
+      fireEvent(column, press("pointermove", 735));
+      fireEvent(column, press("pointerup", 735));
+    });
+    expect(screen.getByTestId("form")).toHaveTextContent(
+      "2026-08-20 10:30 105",
+    );
+  });
+
+  it("leaves the form on its own length when a start is merely clicked", async () => {
+    mockConfig({
+      calendar: { first_day_of_week: "monday" },
+      schedulers_room_id: SCHEDULERS_ROOM,
+    });
+    renderCalendar("/calendar?view=day&date=2026-08-20", true);
+    await userEvent.click(
+      screen.getByRole("button", { name: "Schedule a meeting" }),
+    );
+    expect(screen.getByTestId("form")).toHaveTextContent("default");
+  });
+
   it("opens on the week view when nothing has been chosen", () => {
     const { container } = renderCalendar();
     expect(container.querySelector(".week")).toBeInTheDocument();

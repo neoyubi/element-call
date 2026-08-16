@@ -79,6 +79,13 @@ export const CalendarPage: FC = () => {
   return <Calendar client={clientState.authenticated.client} />;
 };
 
+/** What the scheduling form opens on: a start, and a length if one was asked
+ * for by dragging it out in the time grid. */
+interface SlotSelection {
+  start: Date;
+  durationMinutes?: number;
+}
+
 function viewLabel(view: CalendarView, t: TFunction<"app">): string {
   switch (view) {
     case "day":
@@ -102,7 +109,16 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
   const narrow = useMediaQuery(NARROW_VIEWPORT);
   const [preferredView, setPreferredView] = useSetting(calendarView);
   const [selected, setSelected] = useState<ScheduledMeeting | null>(null);
-  const [slot, setSlot] = useState<Date | null>(null);
+  const [slot, setSlot] = useState<SlotSelection | null>(null);
+
+  // Dragging out a block in the time grid asks for a length as well as a
+  // start; every other way in asks only for a start and lets the form's own
+  // default stand.
+  const onSelectSlot = useCallback(
+    (start: Date, durationMinutes?: number): void =>
+      setSlot({ start, durationMinutes }),
+    [],
+  );
 
   // Closing the detail dialog leaves focus on the document body, so the
   // calendar remembers what opened it and puts focus back on the way out.
@@ -226,7 +242,7 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
               size="sm"
               Icon={PlusIcon}
               onClick={() =>
-                setSlot(
+                onSelectSlot(
                   new Date(
                     focusedDate.getFullYear(),
                     focusedDate.getMonth(),
@@ -280,7 +296,7 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
                 canSchedule={canSchedule}
                 onSelectDay={onSelectDay}
                 onSelectMeeting={openMeeting}
-                onSelectSlot={setSlot}
+                onSelectSlot={onSelectSlot}
               />
             )}
             {view === "agenda" && (
@@ -318,10 +334,18 @@ const Calendar: FC<{ client: MatrixClient }> = ({ client }) => {
       >
         {slot !== null && (
           <ScheduleMeetingForm
-            key={slot.getTime()}
+            // Dragging out a second block of the same length at the same time
+            // is the one case this does not restart the form for, and there
+            // is nothing in it left to reset by then.
+            key={`${slot.start.getTime()}-${slot.durationMinutes ?? ""}`}
             client={client}
-            initialDate={formatDate(slot.getTime())}
-            initialTime={formatTime(slot.getTime())}
+            initialDate={formatDate(slot.start.getTime())}
+            initialTime={formatTime(slot.start.getTime())}
+            initialDurationMinutes={slot.durationMinutes}
+            // Gives the form a way out of its own, and drops the card it
+            // draws standing on its own: inside a dialog that card is a
+            // second surface over the first.
+            onDone={() => setSlot(null)}
           />
         )}
       </Modal>
