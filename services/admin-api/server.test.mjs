@@ -615,7 +615,11 @@ describe("what the calendar shows", () => {
     await updateMeetingRoom(ROOM_ID, { scheduled_start: START + 3600000 });
 
     assert.equal(summary(), "Appointment");
-    assert.equal(description(), `Join: ${statePut().meet_link}`);
+    // The newline is escaped per RFC 5545, so the stored property is one line.
+    assert.equal(
+      description(),
+      `Join the appointment:\\n${statePut().meet_link}`,
+    );
   });
 
   test("a room name in the request does not become the title", async () => {

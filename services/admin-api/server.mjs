@@ -60,7 +60,8 @@ const CALDAV_ORGANIZER_NAME = process.env.CALDAV_ORGANIZER_NAME;
 const MEETING_SUMMARY_TEMPLATE =
   process.env.MEETING_SUMMARY_TEMPLATE || "Appointment";
 const MEETING_DESCRIPTION_TEMPLATE =
-  process.env.MEETING_DESCRIPTION_TEMPLATE || "Join: {{meet_link}}";
+  process.env.MEETING_DESCRIPTION_TEMPLATE ||
+  "Join the appointment:\n{{meet_link}}";
 
 // Substitute {{placeholder}} values. An unknown placeholder renders empty, so
 // a template is never shown to a reader with its own markup in it.
