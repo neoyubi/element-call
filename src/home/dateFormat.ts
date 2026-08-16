@@ -1,8 +1,10 @@
 // Parsing and formatting for the scheduling form's own inputs.
 //
-// A date input exchanges "YYYY-MM-DD" and a time input "HH:MM" whatever order
-// the browser presents the fields in, so nothing here assumes a written date
-// format. Anything a person reads is formatted in ../calendar/dates.
+// The form exchanges "YYYY-MM-DD" and "HH:MM" with the rest of the app, so
+// nothing here assumes a written date format. Anything a person reads is
+// formatted in ../calendar/dates.
+
+import { type DateOrder } from "../config/ConfigOptions";
 
 const DATE_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 
@@ -48,8 +50,6 @@ export function formatTime(ms: number): string {
 // digits, and the separators are inserted on the way out. Entry order is
 // configuration rather than locale, so a mixed fleet of workstations shares one
 // muscle memory.
-
-export type DateOrder = "dmy" | "mdy" | "ymd";
 
 // A fixed-width run of digits within the stream. `min`/`max` bound the value a
 // full segment may take; a `width` of 4 (the year) is left unbounded.
@@ -135,11 +135,7 @@ function padSegment(segments: Segment[], digits: string): string {
 // Feed a whole string through the segments. Digits extend the stream, a
 // separator completes the segment in progress, and everything else is ignored.
 // Used for typing, for pasting, and for seeding.
-function appendAll(
-  segments: Segment[],
-  digits: string,
-  input: string,
-): string {
+function appendAll(segments: Segment[], digits: string, input: string): string {
   let next = digits;
   for (const char of input) {
     if (char >= "0" && char <= "9") next = appendDigit(segments, next, char);
@@ -165,11 +161,7 @@ function split(segments: Segment[], digits: string): string[] {
 
 // Render a stream for display, with a trailing separator once a segment fills
 // so the caret visibly moves on.
-function join(
-  segments: Segment[],
-  digits: string,
-  separator: string,
-): string {
+function join(segments: Segment[], digits: string, separator: string): string {
   const parts = split(segments, digits);
   if (parts.length === 0) return "";
   const complete =
@@ -216,7 +208,11 @@ export function inferYear(day: number, month: number, today: Date): number {
     today.getMonth(),
     today.getDate(),
   ).getTime();
-  for (let year = today.getFullYear(); year <= today.getFullYear() + 4; year++) {
+  for (
+    let year = today.getFullYear();
+    year <= today.getFullYear() + 4;
+    year++
+  ) {
     const candidate = new Date(year, month - 1, day);
     if (
       candidate.getMonth() + 1 === month &&
@@ -230,7 +226,10 @@ export function inferYear(day: number, month: number, today: Date): number {
 
 // Complete a partly typed segment on blur. A single leading digit can only have
 // meant itself zero-padded, and 0 alone is not a real day or month.
-function padLeft(part: string | undefined, segment: Segment): number | undefined {
+function padLeft(
+  part: string | undefined,
+  segment: Segment,
+): number | undefined {
   if (part === undefined || part.length === 0) return undefined;
   const value = Number(part);
   if (part.length < segment.width && value < segment.min) return undefined;
@@ -304,8 +303,7 @@ export function canonicalTimeToDigits(time: string): string {
   return /^\d{2}:\d{2}$/.test(time.trim()) ? time.replace(":", "") : "";
 }
 
-const PASTE_DATE =
-  /^(\d{1,4})[./\-\s](\d{1,2})[./\-\s](\d{2}|\d{4})$/;
+const PASTE_DATE = /^(\d{1,4})[./\-\s](\d{1,2})[./\-\s](\d{2}|\d{4})$/;
 const PASTE_TIME = /^(\d{1,2}):(\d{2})\s*([ap])\.?m\.?$/i;
 
 // Read a pasted date. An ISO string is reordered to the configured order; a

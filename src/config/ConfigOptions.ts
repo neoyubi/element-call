@@ -7,6 +7,9 @@ Please see LICENSE in the repository root for full details.
 */
 
 /** Day a week starts on; "auto" follows the runtime's locale data. */
+/** Order the day, month and year are typed in. */
+export type DateOrder = "dmy" | "mdy" | "ymd";
+
 export type FirstDayOfWeek =
   | "auto"
   | "sunday"
@@ -166,6 +169,19 @@ export interface ConfigOptions {
      */
     day_start_hour?: number;
     day_end_hour?: number;
+    /**
+     * Order the day, month and year are typed in, and the character written
+     * between them. Native date inputs follow the browser's own locale and
+     * ignore the page's, so a mixed fleet of workstations would otherwise ask
+     * staff to type a different order on each machine.
+     */
+    date_input_order?: DateOrder;
+    date_input_separator?: string;
+    /**
+     * Show times on a 24-hour clock. Entry is 24-hour either way, so turning
+     * this off makes the app display a clock it does not accept.
+     */
+    time_display_24h?: boolean;
   };
 
   /**
@@ -258,6 +274,9 @@ export interface ConfigOptions {
  */
 export const CALENDAR_DEFAULTS = {
   default_timezone: "UTC",
+  date_input_order: "dmy" as DateOrder,
+  date_input_separator: ".",
+  time_display_24h: true,
   duration_options: [15, 30, 45, 60],
   default_duration_minutes: 30,
   reminder_options: [15, 30, 60, 120],

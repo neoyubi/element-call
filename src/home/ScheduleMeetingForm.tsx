@@ -2,38 +2,63 @@ import {
   type FC,
   type FormEvent,
   type FormEventHandler,
-  type ChangeEvent,
+  type ReactNode,
   useCallback,
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { type MatrixClient } from "matrix-js-sdk";
 import { useTranslation } from "react-i18next";
 import { Button, Heading, Text } from "@vector-im/compound-web";
 import { logger } from "matrix-js-sdk/lib/logger";
+import ChevronDownIcon from "@vector-im/compound-design-tokens/assets/web/icons/chevron-down";
+import CheckCircleSolidIcon from "@vector-im/compound-design-tokens/assets/web/icons/check-circle-solid";
+import CheckIcon from "@vector-im/compound-design-tokens/assets/web/icons/check";
 
 import { Config } from "../config/Config";
 import { CALENDAR_DEFAULTS } from "../config/ConfigOptions";
-import { FieldRow, InputField, ErrorMessage } from "../input/Input";
-import { parseStart } from "./dateFormat";
+import { InputField } from "../input/Input";
+import { DateTimeInput } from "../input/DateTimeInput";
+import { scheduleAdvancedOpen, useSetting } from "../settings/settings";
+import {
+  appendDateInput,
+  appendTimeInput,
+  canonicalTimeToDigits,
+  dateDigitCapacity,
+  dateDigitsToIso,
+  formatDateDigits,
+  formatTimeDigits,
+  isoToDateDigits,
+  parsePastedDate,
+  parsePastedTime,
+  parseStart,
+  timeDigitCapacity,
+  timeDigitsToCanonical,
+} from "./dateFormat";
 import styles from "./ScheduleMeetingForm.module.css";
 
 interface Props {
   client: MatrixClient;
-  /** Prefill for the date field, as an <input type="date"> value. */
+  /** Prefill for the date field, as a "YYYY-MM-DD" value. */
   initialDate?: string;
-  /** Prefill for the time field, as an <input type="time"> value. */
+  /** Prefill for the time field, as an "HH:MM" value. */
   initialTime?: string;
   /** Meeting length to preselect, in minutes. */
   initialDurationMinutes?: number;
+  /** Renders a dismiss action, and drops the card's own surface. */
+  onDone?: () => void;
 }
 
 // Mirrors the HTML5 email input semantics: a non-empty local part, an "@",
 // and a dotted domain. Good enough for client-side guarding; the server is
 // the source of truth.
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// How long the copy button reports success before returning to its label.
+const COPIED_MS = 2000;
 
 // Every IANA zone the runtime knows about, or just UTC where it knows none.
 // Computed once: the list is long and never changes.
@@ -63,8 +88,20 @@ function defaultTimezone(): string {
   }
 }
 
+// "Europe/Amsterdam" reads as "Amsterdam". The full identifier stays available
+// as the element's title, and in the override control.
+function shortTimezone(timezone: string): string {
+  return timezone.split("/").pop()?.replace(/_/g, " ") ?? timezone;
+}
+
+type FieldName = "name" | "email" | "date" | "time" | "organizer";
+type Errors = Partial<Record<FieldName, string>>;
+
 interface SuccessResult {
   meetLink: string;
+  email: string;
+  start: number;
+  durationMinutes: number;
 }
 
 /**
@@ -77,19 +114,24 @@ export const ScheduleMeetingForm: FC<Props> = ({
   initialDate,
   initialTime,
   initialDurationMinutes,
+  onDone,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const calendar = Config.get().calendar;
   const durationOptions =
     calendar?.duration_options ?? CALENDAR_DEFAULTS.duration_options;
   const reminderOptions =
     calendar?.reminder_options ?? CALENDAR_DEFAULTS.reminder_options;
+  const dateOrder =
+    calendar?.date_input_order ?? CALENDAR_DEFAULTS.date_input_order;
+  const dateSeparator =
+    calendar?.date_input_separator ?? CALENDAR_DEFAULTS.date_input_separator;
 
   const [inviteeName, setInviteeName] = useState("");
   const [inviteeEmail, setInviteeEmail] = useState("");
   const [organizerEmail, setOrganizerEmail] = useState("");
   // True when the organizer email was derived from the logged-in account's
-  // email threepid; the field is then locked to the account identity.
+  // email threepid, in which case it is shown rather than asked for.
   const [organizerEmailDerived, setOrganizerEmailDerived] = useState(false);
   const [date, setDate] = useState(() => initialDate ?? "");
   const [time, setTime] = useState(() => initialTime ?? "");
@@ -116,10 +158,35 @@ export const ScheduleMeetingForm: FC<Props> = ({
     [timezone],
   );
 
-  const [fieldError, setFieldError] = useState<string>();
-  const [submitError, setSubmitError] = useState<Error>();
+  const [errors, setErrors] = useState<Errors>({});
+  const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>(
+    {},
+  );
+  const [submitError, setSubmitError] = useState<string>();
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<SuccessResult>();
+  const [copied, setCopied] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useSetting(scheduleAdvancedOpen);
+
+  const nameId = useId();
+  const emailId = useId();
+  const dateId = useId();
+  const timeId = useId();
+  const organizerId = useId();
+  const whenLabelId = useId();
+  const advancedId = useId();
+  const successTitleRef = useRef<HTMLHeadingElement>(null);
+
+  const fieldIds: Record<FieldName, string> = useMemo(
+    () => ({
+      name: nameId,
+      email: emailId,
+      date: dateId,
+      time: timeId,
+      organizer: organizerId,
+    }),
+    [nameId, emailId, dateId, timeId, organizerId],
+  );
 
   useEffect(() => {
     client
@@ -136,9 +203,96 @@ export const ScheduleMeetingForm: FC<Props> = ({
       });
   }, [client]);
 
-  const durationId = useId();
-  const reminderId = useId();
-  const timezoneId = useId();
+  // Put the keyboard where the work is. Inside a dialog this is unambiguous;
+  // the form is never rendered anywhere it would steal focus from a page.
+  useEffect(() => {
+    if (result === undefined) return;
+    successTitleRef.current?.focus();
+  }, [result]);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), COPIED_MS);
+    return (): void => clearTimeout(timer);
+  }, [copied]);
+
+  const validateField = useCallback(
+    (field: FieldName): string | undefined => {
+      switch (field) {
+        case "name": {
+          const name = inviteeName.trim();
+          if (name.length < 1 || name.length > 100)
+            return t("schedule_meeting.error_name");
+          return undefined;
+        }
+        case "email":
+          if (!inviteeEmail.trim())
+            return t("schedule_meeting.error_email_missing");
+          if (!EMAIL_REGEX.test(inviteeEmail.trim()))
+            return t("schedule_meeting.error_email_invalid");
+          return undefined;
+        case "organizer":
+          if (organizerEmail.trim() && !EMAIL_REGEX.test(organizerEmail.trim()))
+            return t("schedule_meeting.error_email_invalid");
+          return undefined;
+        case "date": {
+          if (!date) return t("schedule_meeting.error_date");
+          // The year is inferred forwards, so a complete date is never behind
+          // us; only a same-day time can be, and that is the time field's.
+          return undefined;
+        }
+        case "time":
+          if (!time) return t("schedule_meeting.error_time");
+          if (date) {
+            const start = parseStart(date, time);
+            if (start === undefined) return t("schedule_meeting.error_time");
+            if (start <= Date.now())
+              return t("schedule_meeting.error_past_date");
+          }
+          return undefined;
+      }
+    },
+    [inviteeName, inviteeEmail, organizerEmail, date, time, t],
+  );
+
+  // Validate on blur once a field has been used, and thereafter on every
+  // change while it is showing an error, so a correction clears immediately.
+  const revalidate = useCallback(
+    (field: FieldName): void => {
+      setErrors((current) => {
+        if (!touched[field] && current[field] === undefined) return current;
+        const message = validateField(field);
+        if (current[field] === message) return current;
+        const next = { ...current };
+        if (message === undefined) delete next[field];
+        else next[field] = message;
+        return next;
+      });
+    },
+    [touched, validateField],
+  );
+
+  useEffect(() => {
+    revalidate("name");
+  }, [inviteeName, revalidate]);
+  useEffect(() => {
+    revalidate("email");
+  }, [inviteeEmail, revalidate]);
+  useEffect(() => {
+    revalidate("date");
+  }, [date, revalidate]);
+  useEffect(() => {
+    revalidate("time");
+  }, [time, revalidate]);
+  useEffect(() => {
+    revalidate("organizer");
+  }, [organizerEmail, revalidate]);
+
+  const onFieldBlur = useCallback((field: FieldName): void => {
+    setTouched((current) =>
+      current[field] === true ? current : { ...current, [field]: true },
+    );
+  }, []);
 
   const reset = useCallback((): void => {
     setInviteeName("");
@@ -146,6 +300,8 @@ export const ScheduleMeetingForm: FC<Props> = ({
     if (!organizerEmailDerived) setOrganizerEmail("");
     setDate("");
     setTime("");
+    setErrors({});
+    setTouched({});
     setDuration(
       calendar?.default_duration_minutes ??
         CALENDAR_DEFAULTS.default_duration_minutes,
@@ -156,38 +312,38 @@ export const ScheduleMeetingForm: FC<Props> = ({
     );
   }, [organizerEmailDerived, calendar]);
 
-  const validate = useCallback((): string | undefined => {
-    const name = inviteeName.trim();
-    if (name.length < 1 || name.length > 100)
-      return t("schedule_meeting.error_required");
-    if (!inviteeEmail.trim()) return t("schedule_meeting.error_required");
-    if (!EMAIL_REGEX.test(inviteeEmail.trim()))
-      return t("schedule_meeting.error_email");
-    if (organizerEmail.trim() && !EMAIL_REGEX.test(organizerEmail.trim()))
-      return t("schedule_meeting.error_email");
-    if (!date || !time) return t("schedule_meeting.error_required");
-    const start = parseStart(date, time);
-    if (start === undefined) return t("schedule_meeting.error_required");
-    if (start <= Date.now()) return t("schedule_meeting.error_past_date");
-    return undefined;
-  }, [inviteeName, inviteeEmail, organizerEmail, date, time, t]);
-
   const onSubmit: FormEventHandler<HTMLFormElement> = useCallback(
     (e: FormEvent) => {
       e.preventDefault();
       setSubmitError(undefined);
-      setResult(undefined);
 
-      const error = validate();
-      if (error) {
-        setFieldError(error);
+      const fields: FieldName[] = [
+        "name",
+        "email",
+        "date",
+        "time",
+        "organizer",
+      ];
+      const found: Errors = {};
+      for (const field of fields) {
+        const message = validateField(field);
+        if (message !== undefined) found[field] = message;
+      }
+      setTouched(Object.fromEntries(fields.map((f) => [f, true])));
+      setErrors(found);
+
+      const firstInvalid = fields.find((field) => found[field] !== undefined);
+      if (firstInvalid !== undefined) {
+        document.getElementById(fieldIds[firstInvalid])?.focus();
         return;
       }
-      setFieldError(undefined);
 
       const start = parseStart(date, time);
-      if (start === undefined) return; // guarded by validate(); defensive
-      const end = start + duration * 60000;
+      if (start === undefined) return; // guarded above; defensive
+      // Bound here rather than read inside submit(): a hoisted function
+      // declaration does not carry the narrowing above into its body.
+      const startMs: number = start;
+      const end = startMs + duration * 60000;
       const name = inviteeName.trim();
 
       const organizerUserId = client.getUserId() ?? undefined;
@@ -201,7 +357,7 @@ export const ScheduleMeetingForm: FC<Props> = ({
       const body = {
         booking_id: crypto.randomUUID(),
         room_name: name,
-        scheduled_start: start,
+        scheduled_start: startMs,
         scheduled_end: end,
         organizer_name: organizerName,
         organizer_user_id: organizerUserId,
@@ -211,6 +367,11 @@ export const ScheduleMeetingForm: FC<Props> = ({
         timezone,
         reminder_minutes: reminder,
       };
+
+      if (!navigator.onLine) {
+        setSubmitError(t("schedule_meeting.error_offline"));
+        return;
+      }
 
       async function submit(): Promise<void> {
         setSubmitting(true);
@@ -232,21 +393,27 @@ export const ScheduleMeetingForm: FC<Props> = ({
           throw new Error(`Scheduling failed (${response.status})`);
 
         const json = (await response.json()) as { meet_link?: string };
-        setResult({ meetLink: json.meet_link ?? "" });
+        setResult({
+          meetLink: json.meet_link ?? "",
+          email: body.prospect_email,
+          start: startMs,
+          durationMinutes: duration,
+        });
         reset();
       }
 
       submit()
         .catch((err: unknown) => {
+          // The cause belongs in the log, not in front of someone who cannot
+          // act on "Missing access token".
           logger.error("Failed to schedule meeting", err);
-          setSubmitError(
-            err instanceof Error ? err : new Error("Scheduling failed"),
-          );
+          setSubmitError(t("schedule_meeting.error_submit"));
         })
         .finally(() => setSubmitting(false));
     },
     [
-      validate,
+      validateField,
+      fieldIds,
       date,
       time,
       duration,
@@ -257,177 +424,396 @@ export const ScheduleMeetingForm: FC<Props> = ({
       reminder,
       client,
       reset,
+      t,
     ],
   );
 
   const onCopyLink = useCallback((): void => {
-    if (result?.meetLink)
-      navigator.clipboard.writeText(result.meetLink).catch((err: unknown) => {
+    if (!result?.meetLink) return;
+    navigator.clipboard
+      .writeText(result.meetLink)
+      .then(() => setCopied(true))
+      .catch((err: unknown) => {
         logger.warn("Failed to copy meeting link", err);
       });
   }, [result]);
 
-  return (
-    <div className={styles.wrapper}>
-      <div className={styles.container}>
-        <Heading size="sm" weight="semibold" className={styles.title}>
-          {t("schedule_meeting.title")}
-        </Heading>
-        <form className={styles.form} onSubmit={onSubmit}>
-          <FieldRow>
-            <InputField
-              id="inviteeName"
-              name="inviteeName"
-              type="text"
-              label={t("schedule_meeting.invitee_name")}
-              placeholder={t("schedule_meeting.invitee_name")}
-              required
-              autoComplete="off"
-              value={inviteeName}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setInviteeName(e.target.value)
-              }
+  // Adapters binding the masked field to the configured written format. They
+  // live here rather than inline so the hook order does not depend on whether
+  // the success panel is showing.
+  const dateToDigits = useCallback(
+    (value: string) => isoToDateDigits(value, dateOrder),
+    [dateOrder],
+  );
+  const dateFormatter = useCallback(
+    (digits: string) => formatDateDigits(digits, dateOrder, dateSeparator),
+    [dateOrder, dateSeparator],
+  );
+  const dateAppend = useCallback(
+    (digits: string, input: string) =>
+      appendDateInput(digits, input, dateOrder),
+    [dateOrder],
+  );
+  const datePaste = useCallback(
+    (text: string) => parsePastedDate(text, dateOrder),
+    [dateOrder],
+  );
+  const dateCanonical = useCallback(
+    (digits: string) => dateDigitsToIso(digits, dateOrder, new Date()),
+    [dateOrder],
+  );
+  const describeDate = useCallback(
+    (value: string) => t("schedule_meeting.date_normalized", { value }),
+    [t],
+  );
+  const describeTime = useCallback(
+    (value: string) => t("schedule_meeting.time_normalized", { value }),
+    [t],
+  );
+
+  // "45 min", "1 h" — the shape a chip can carry without wrapping.
+  const shortLength = useCallback(
+    (minutes: number): string =>
+      minutes >= 60 && minutes % 60 === 0
+        ? t("schedule_meeting.hours_short", { count: minutes / 60 })
+        : t("schedule_meeting.minutes_short", { count: minutes }),
+    [t],
+  );
+
+  const chipGroup = (
+    name: string,
+    legend: string,
+    options: number[],
+    value: number,
+    onChange: (value: number) => void,
+    labelFor: (minutes: number) => string,
+    describedBy?: string,
+  ): ReactNode => (
+    <fieldset className={styles.chips} aria-describedby={describedBy}>
+      <legend className={styles.chipsLegend}>{legend}</legend>
+      {options.map((option) => {
+        const id = `${name}-${option}`;
+        return (
+          <span key={option}>
+            <input
+              className={styles.chipInput}
+              type="radio"
+              id={id}
+              name={name}
+              checked={value === option}
+              disabled={submitting}
+              onChange={() => onChange(option)}
             />
-          </FieldRow>
-          <FieldRow>
-            <InputField
-              id="inviteeEmail"
-              name="inviteeEmail"
-              type="email"
-              label={t("schedule_meeting.invitee_email")}
-              placeholder={t("schedule_meeting.invitee_email")}
-              required
-              autoComplete="off"
-              value={inviteeEmail}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setInviteeEmail(e.target.value)
-              }
-            />
-          </FieldRow>
-          <FieldRow>
-            <InputField
-              id="organizerEmail"
-              name="organizerEmail"
-              type="email"
-              label={t("schedule_meeting.organizer_email")}
-              placeholder={t("schedule_meeting.organizer_email")}
-              autoComplete="off"
-              disabled={organizerEmailDerived}
-              value={organizerEmail}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setOrganizerEmail(e.target.value)
-              }
-            />
-          </FieldRow>
-          <div className={styles.row}>
-            <InputField
-              id="meetingDate"
-              name="meetingDate"
-              type="date"
-              label={t("schedule_meeting.date")}
-              required
-              autoComplete="off"
-              value={date}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setDate(e.target.value)
-              }
-            />
-            <InputField
-              id="meetingTime"
-              name="meetingTime"
-              type="time"
-              label={t("schedule_meeting.time")}
-              required
-              value={time}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                setTime(e.target.value)
-              }
-            />
-          </div>
-          <div className={styles.row}>
-            <div className={styles.selectField}>
-              <label htmlFor={durationId}>
-                {t("schedule_meeting.duration")}
-              </label>
-              <select
-                id={durationId}
-                className={styles.select}
-                value={duration}
-                onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                  setDuration(Number(e.target.value))
-                }
-              >
-                {durationOptions.map((minutes) => (
-                  <option key={minutes} value={minutes}>
-                    {t("schedule_meeting.minutes", { count: minutes })}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className={styles.selectField}>
-              <label htmlFor={reminderId}>
-                {t("schedule_meeting.reminder")}
-              </label>
-              <select
-                id={reminderId}
-                className={styles.select}
-                value={reminder}
-                onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                  setReminder(Number(e.target.value))
-                }
-              >
-                <option value={0}>{t("schedule_meeting.reminder_none")}</option>
-                {reminderOptions.map((minutes) => (
-                  <option key={minutes} value={minutes}>
-                    {t("schedule_meeting.minutes", { count: minutes })}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className={styles.selectField}>
-            <label htmlFor={timezoneId}>{t("schedule_meeting.timezone")}</label>
-            <select
-              id={timezoneId}
-              className={styles.select}
-              value={timezone}
-              onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                setTimezone(e.target.value)
-              }
+            <label className={styles.chip} htmlFor={id}>
+              {labelFor(option)}
+              <span className={styles.offscreen}>
+                {" "}
+                {t("schedule_meeting.minutes", { count: option })}
+              </span>
+            </label>
+          </span>
+        );
+      })}
+    </fieldset>
+  );
+
+  if (result !== undefined) {
+    const when = new Date(result.start);
+    return (
+      <div className={styles.wrapper}>
+        <div
+          className={
+            onDone ? `${styles.container} ${styles.bare}` : styles.container
+          }
+        >
+          <div className={styles.success} role="status">
+            <Heading
+              as="h3"
+              size="sm"
+              weight="semibold"
+              className={styles.successTitle}
+              tabIndex={-1}
+              ref={successTitleRef}
             >
-              {timezoneOptions.map((tz) => (
-                <option key={tz} value={tz}>
-                  {tz}
-                </option>
-              ))}
-            </select>
-          </div>
-          {fieldError && <p className={styles.error}>{fieldError}</p>}
-          {submitError && (
-            <FieldRow>
-              <ErrorMessage error={submitError} />
-            </FieldRow>
-          )}
-          {result && (
-            <div className={styles.success}>
-              <Text size="sm" className={styles.successText}>
-                {t("schedule_meeting.success")}
-              </Text>
-              {result.meetLink && (
+              <CheckCircleSolidIcon className={styles.successIcon} />
+              {t("schedule_meeting.success_title")}
+            </Heading>
+            <Text size="sm">
+              {t("schedule_meeting.success_detail", { email: result.email })}
+            </Text>
+            <Text size="sm" weight="medium">
+              {t("schedule_meeting.success_when", {
+                date: when.toLocaleDateString(i18n.language),
+                time: when.toLocaleTimeString(i18n.language, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hourCycle:
+                    (calendar?.time_display_24h ??
+                    CALENDAR_DEFAULTS.time_display_24h)
+                      ? "h23"
+                      : undefined,
+                }),
+                duration: shortLength(result.durationMinutes),
+              })}
+            </Text>
+            {result.meetLink && (
+              <div className={styles.group}>
+                <span className={styles.groupLabel}>
+                  {t("schedule_meeting.link_label")}
+                </span>
                 <div className={styles.linkRow}>
-                  <span className={styles.link}>{result.meetLink}</span>
+                  <Text
+                    size="sm"
+                    className={styles.link}
+                    title={result.meetLink}
+                  >
+                    {result.meetLink}
+                  </Text>
                   <Button
-                    type="button"
                     kind="secondary"
                     size="sm"
                     onClick={onCopyLink}
+                    Icon={copied ? CheckIcon : undefined}
                   >
-                    {t("schedule_meeting.copy_link")}
+                    {copied
+                      ? t("schedule_meeting.copied")
+                      : t("schedule_meeting.copy_link")}
                   </Button>
+                </div>
+              </div>
+            )}
+            <div className={styles.successActions}>
+              <Button
+                kind="secondary"
+                onClick={() => {
+                  setResult(undefined);
+                  setCopied(false);
+                }}
+              >
+                {t("schedule_meeting.schedule_another")}
+              </Button>
+              {onDone && (
+                <Button onClick={onDone}>{t("schedule_meeting.done")}</Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.wrapper}>
+      <div
+        className={
+          onDone ? `${styles.container} ${styles.bare}` : styles.container
+        }
+      >
+        <Heading size="sm" weight="semibold" className={styles.title}>
+          {t("schedule_meeting.title")}
+        </Heading>
+        <form
+          className={styles.form}
+          onSubmit={onSubmit}
+          aria-busy={submitting}
+        >
+          <InputField
+            id={nameId}
+            name="inviteeName"
+            type="text"
+            required
+            label={t("schedule_meeting.name_label")}
+            placeholder={t("schedule_meeting.name_label")}
+            value={inviteeName}
+            disabled={submitting}
+            description={errors.name}
+            onChange={(e) => setInviteeName(e.target.value)}
+            onBlur={() => onFieldBlur("name")}
+          />
+
+          <div className={styles.group}>
+            <InputField
+              id={emailId}
+              name="inviteeEmail"
+              type="email"
+              required
+              label={t("schedule_meeting.email_label")}
+              placeholder={t("schedule_meeting.email_label")}
+              value={inviteeEmail}
+              disabled={submitting}
+              description={errors.email}
+              onChange={(e) => setInviteeEmail(e.target.value)}
+              onBlur={() => onFieldBlur("email")}
+            />
+            {errors.email === undefined && (
+              <p className={styles.help}>{t("schedule_meeting.email_help")}</p>
+            )}
+          </div>
+
+          <div className={styles.group}>
+            <span className={styles.groupLabel} id={whenLabelId}>
+              {t("schedule_meeting.when_label")}
+            </span>
+            <div
+              className={styles.when}
+              role="group"
+              aria-labelledby={whenLabelId}
+            >
+              <DateTimeInput
+                id={dateId}
+                label={t("schedule_meeting.date")}
+                formatDescription={t(
+                  "schedule_meeting.date_format_description",
+                )}
+                placeholder={t("schedule_meeting.date_format_hint")}
+                value={date}
+                capacity={dateDigitCapacity(dateOrder)}
+                toDigits={dateToDigits}
+                format={dateFormatter}
+                append={dateAppend}
+                parsePasted={datePaste}
+                toCanonical={dateCanonical}
+                describeNormalized={describeDate}
+                onChange={setDate}
+                onBlur={() => onFieldBlur("date")}
+                error={errors.date}
+                disabled={submitting}
+              />
+              <DateTimeInput
+                id={timeId}
+                label={t("schedule_meeting.time")}
+                formatDescription={t(
+                  "schedule_meeting.time_format_description",
+                )}
+                placeholder={t("schedule_meeting.time_format_hint")}
+                value={time}
+                capacity={timeDigitCapacity()}
+                toDigits={canonicalTimeToDigits}
+                format={formatTimeDigits}
+                append={appendTimeInput}
+                parsePasted={parsePastedTime}
+                toCanonical={timeDigitsToCanonical}
+                describeNormalized={describeTime}
+                onChange={setTime}
+                onBlur={() => onFieldBlur("time")}
+                error={errors.time}
+                disabled={submitting}
+              />
+            </div>
+          </div>
+
+          {chipGroup(
+            "duration",
+            t("schedule_meeting.length_label"),
+            durationOptions,
+            duration,
+            setDuration,
+            shortLength,
+          )}
+
+          <p className={styles.context}>
+            {t("schedule_meeting.context_timezone", {
+              timezone: shortTimezone(timezone),
+            })}
+            {organizerEmail &&
+              ` ${t("schedule_meeting.context_organizer", { email: organizerEmail })}`}
+          </p>
+
+          <button
+            type="button"
+            className={styles.disclosure}
+            aria-expanded={advancedOpen}
+            aria-controls={advancedId}
+            onClick={() => setAdvancedOpen(!advancedOpen)}
+          >
+            <ChevronDownIcon
+              width={16}
+              height={16}
+              className={
+                advancedOpen
+                  ? `${styles.disclosureIcon} ${styles.disclosureIconOpen}`
+                  : styles.disclosureIcon
+              }
+            />
+            {advancedOpen
+              ? t("schedule_meeting.fewer_options")
+              : t("schedule_meeting.more_options")}
+          </button>
+
+          {/* Mounted only while open, so nothing is hidden but still
+          focusable; aria-expanded already carries the state. */}
+          {advancedOpen && (
+            <div id={advancedId} className={styles.advanced}>
+              <div className={styles.group}>
+                {chipGroup(
+                  "reminder",
+                  t("schedule_meeting.reminder"),
+                  [0, ...reminderOptions],
+                  reminder,
+                  setReminder,
+                  (minutes) =>
+                    minutes === 0
+                      ? t("schedule_meeting.reminder_none")
+                      : shortLength(minutes),
+                )}
+                <p className={styles.help}>
+                  {t("schedule_meeting.reminder_help")}
+                </p>
+              </div>
+
+              <div className={styles.group}>
+                <label className={styles.groupLabel} htmlFor="scheduleTimezone">
+                  {t("schedule_meeting.timezone")}
+                </label>
+                {/* Native rather than a menu component: a list this long is
+                only usable with the type-ahead a native select gives free, and
+                on a phone it opens the system wheel. */}
+                <select
+                  id="scheduleTimezone"
+                  className={styles.select}
+                  value={timezone}
+                  disabled={submitting}
+                  onChange={(e) => setTimezone(e.target.value)}
+                >
+                  {timezoneOptions.map((zone) => (
+                    <option key={zone} value={zone}>
+                      {zone}
+                    </option>
+                  ))}
+                </select>
+                <p className={styles.help}>
+                  {t("schedule_meeting.timezone_help")}
+                </p>
+              </div>
+
+              {!organizerEmailDerived && (
+                <div className={styles.group}>
+                  <InputField
+                    id={organizerId}
+                    name="organizerEmail"
+                    type="email"
+                    label={t("schedule_meeting.organizer_label")}
+                    placeholder={t("schedule_meeting.organizer_label")}
+                    value={organizerEmail}
+                    disabled={submitting}
+                    description={errors.organizer}
+                    onChange={(e) => setOrganizerEmail(e.target.value)}
+                    onBlur={() => onFieldBlur("organizer")}
+                  />
+                  <p className={styles.help}>
+                    {t("schedule_meeting.organizer_help")}
+                  </p>
                 </div>
               )}
             </div>
           )}
+
+          {submitError !== undefined && (
+            <p className={styles.error} role="alert">
+              {submitError}
+            </p>
+          )}
+
           <Button type="submit" size="lg" disabled={submitting}>
             {submitting
               ? t("schedule_meeting.submitting")

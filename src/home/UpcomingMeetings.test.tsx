@@ -131,7 +131,7 @@ describe("UpcomingMeetings", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(
-      await screen.findByText("The meeting must start in the future"),
+      await screen.findByText("That time has already passed. Pick a later one."),
     ).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });

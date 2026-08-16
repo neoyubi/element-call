@@ -125,6 +125,13 @@ export const alwaysShowIphoneEarpiece = new Setting<boolean>(
   false,
 );
 
+// Whether the scheduling form's extra options are expanded. Someone who always
+// wants them should not be charged a click every time.
+export const scheduleAdvancedOpen = new Setting<boolean>(
+  "schedule-advanced-open",
+  false,
+);
+
 export const showMeetingsCalendar = new Setting<boolean>(
   "show-meetings-calendar",
   true,

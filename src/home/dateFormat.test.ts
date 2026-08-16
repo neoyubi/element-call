@@ -68,8 +68,7 @@ describe("input formatting", () => {
 });
 
 describe("masked date entry", () => {
-  const type = (keys: string): string =>
-    appendDateInput("", keys, "dmy");
+  const type = (keys: string): string => appendDateInput("", keys, "dmy");
   const shown = (digits: string): string =>
     formatDateDigits(digits, "dmy", ".");
   const today = new Date(2026, 7, 16);

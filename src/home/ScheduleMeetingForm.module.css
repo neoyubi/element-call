@@ -1,106 +1,255 @@
 .wrapper {
   display: flex;
   justify-content: center;
-  width: 100%;
-  margin-bottom: 24px;
+  inline-size: 100%;
 }
 
 .container {
-  display: flex;
-  flex-direction: column;
-  inline-size: min(329px, 100%);
-  gap: 16px;
-  padding: 16px;
-  background-color: var(--cpd-color-bg-subtle-secondary);
+  inline-size: 100%;
+  max-inline-size: 400px;
+  padding: var(--cpd-space-4x);
   border-radius: 8px;
-  box-sizing: border-box;
+  background-color: var(--cpd-color-bg-subtle-secondary);
+}
+
+/* Inside a modal the surrounding dialog supplies the surface and the padding,
+so the card sheds both rather than drawing a second one. */
+.bare {
+  padding: 0;
+  background-color: transparent;
 }
 
 .title {
-  color: var(--cpd-color-text-primary);
+  margin-block: 0 var(--cpd-space-5x);
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--cpd-space-5x);
 }
 
-.row {
+/* A label and the control it names sit closer together than two groups do. */
+.group {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: var(--cpd-space-2x);
+}
+
+.groupLabel {
+  color: var(--cpd-color-text-secondary);
+  font: var(--cpd-font-body-sm-medium);
+}
+
+.help {
+  margin-block: 0;
+  color: var(--cpd-color-text-secondary);
+  font: var(--cpd-font-body-sm-regular);
+}
+
+.error {
+  margin-block: 0;
+  color: var(--cpd-color-text-critical-primary);
+  font: var(--cpd-font-body-sm-medium);
+}
+
+.when {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: var(--cpd-space-3x);
 }
 
-.row > * {
-  flex: 1;
-  min-width: 0;
+/* Below this the two controls no longer fit side by side without the date
+clipping its own placeholder. */
+@media (max-width: 359px) {
+  .when {
+    grid-template-columns: 1fr;
+  }
 }
 
-.selectField {
+.chips {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
+  flex-wrap: wrap;
+  gap: var(--cpd-space-2x);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-inline-size: 0;
 }
 
-.selectField label {
-  font-size: var(--cpd-font-size-body-sm);
+.chipsLegend {
+  padding: 0;
+  margin-block-end: var(--cpd-space-2x);
   color: var(--cpd-color-text-secondary);
+  font: var(--cpd-font-body-sm-medium);
 }
 
-.select {
-  /* Anything below 16px makes mobile Safari zoom the page on focus. */
-  font-size: max(16px, var(--cpd-font-size-body-md));
-  color: var(--cpd-color-text-primary);
-  background-color: var(--cpd-color-bg-canvas-default);
-  border: 1px solid var(--cpd-color-border-interactive-primary);
-  border-radius: 4px;
-  padding: 11px 9px;
-  width: 100%;
-  box-sizing: border-box;
+/* Clipped rather than display:none, which would take the radio out of the
+accessibility tree and out of the tab order along with it. */
+.chipInput {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-.select:focus-visible {
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--cpd-space-10x);
+  padding-inline: var(--cpd-space-3x);
+  border-radius: var(--cpd-space-2x);
+  border: 1px solid var(--cpd-color-border-interactive-secondary);
+  background-color: var(--cpd-color-bg-subtle-secondary);
+  color: var(--cpd-color-text-secondary);
+  font: var(--cpd-font-body-md-regular);
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .chip {
+    min-block-size: var(--cpd-space-11x);
+  }
+}
+
+.chip:hover {
+  background-color: var(--cpd-color-bg-subtle-primary);
+}
+
+.chipInput:checked + .chip {
+  background-color: var(--cpd-color-bg-accent-selected);
   border-color: var(--cpd-color-border-focused);
+  color: var(--cpd-color-text-primary);
+  font-weight: var(--cpd-font-weight-semibold);
+}
+
+.chipInput:focus-visible + .chip {
   outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
   outline-offset: var(--cpd-border-width-1);
 }
 
-.error {
-  margin: 0;
-  font-size: var(--cpd-font-size-body-sm);
-  font-weight: 600;
-  color: var(--cpd-color-text-critical-primary);
+.chipInput:disabled + .chip {
+  color: var(--cpd-color-text-disabled);
+  pointer-events: none;
+}
+
+.context {
+  margin-block: 0;
+  color: var(--cpd-color-text-secondary);
+  font: var(--cpd-font-body-xs-regular);
+}
+
+.disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cpd-space-1x);
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--cpd-color-text-secondary);
+  font: var(--cpd-font-body-sm-medium);
+  cursor: pointer;
+}
+
+.disclosure:focus-visible {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-border-width-1);
+  border-radius: var(--cpd-space-1x);
+}
+
+.disclosureIcon {
+  transition: transform 0.15s;
+}
+
+.disclosureIconOpen {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosureIcon {
+    transition: none;
+  }
+}
+
+.advanced {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cpd-space-5x);
+}
+
+.select {
+  inline-size: 100%;
+  /* Anything below 16px makes mobile Safari zoom the page on focus, and never
+  zoom back out. */
+  font-size: max(16px, var(--font-size-body));
+  padding: 12px 9px 10px 9px;
+  border-radius: 4px;
+  border: 1px solid var(--cpd-color-border-interactive-primary);
+  background-color: var(--cpd-color-bg-canvas-default);
+  color: var(--cpd-color-text-primary);
+}
+
+.select:focus-visible {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-border-width-1);
 }
 
 .success {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--cpd-space-4x);
 }
 
-.successText {
-  color: var(--cpd-color-text-success-primary);
+.successTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--cpd-space-2x);
+  margin-block: 0;
+}
+
+.successIcon {
+  color: var(--cpd-color-icon-success-primary);
+  flex-shrink: 0;
 }
 
 .linkRow {
   display: flex;
-  gap: 8px;
   align-items: center;
+  gap: var(--cpd-space-2x);
 }
 
 .link {
   flex: 1;
-  min-width: 0;
-  font-size: var(--cpd-font-size-body-sm);
-  color: var(--cpd-color-text-primary);
-  background-color: var(--cpd-color-bg-canvas-default);
-  border: 1px solid var(--cpd-color-border-interactive-primary);
-  border-radius: 4px;
-  padding: 8px 9px;
+  min-inline-size: 0;
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.successActions {
+  display: flex;
+  gap: var(--cpd-space-3x);
+}
+
+@media (max-width: 480px) {
+  .linkRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .successActions {
+    flex-direction: column;
+  }
+}
+
+.offscreen {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
 }

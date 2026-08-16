@@ -7,6 +7,7 @@ Please see LICENSE in the repository root for full details.
 
 import {
   type ChangeEvent,
+  type FocusEvent,
   type FC,
   type ForwardedRef,
   type ReactNode,
@@ -76,6 +77,9 @@ interface InputFieldProps {
   placeholder?: string;
   defaultChecked?: boolean;
   min?: number;
+  onBlur?: (event: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  /** Marks the control invalid to assistive technology. */
+  "aria-invalid"?: boolean;
   onChange?: (event: ChangeEvent<HTMLInputElement>) => void;
 }
 
@@ -114,7 +118,7 @@ export const InputField: FC<InputFieldProps> = ({
           id={id}
           ref={ref as ForwardedRef<HTMLTextAreaElement>}
           disabled={disabled}
-          aria-describedby={descriptionId}
+          aria-describedby={description ? descriptionId : undefined}
           {...rest}
         />
       ) : (
@@ -124,7 +128,7 @@ export const InputField: FC<InputFieldProps> = ({
           type={type}
           checked={checked}
           disabled={disabled}
-          aria-describedby={descriptionId}
+          aria-describedby={description ? descriptionId : undefined}
           min={min}
           {...rest}
         />

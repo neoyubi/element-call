@@ -24,7 +24,6 @@ exports[`DeveloperSettingsTab > renders and matches snapshot 1`] = `
       class="field inputField"
     >
       <input
-        aria-describedby="_r_1_"
         id="duplicateTiles"
         min="0"
         type="number"
@@ -44,7 +43,6 @@ exports[`DeveloperSettingsTab > renders and matches snapshot 1`] = `
       class="field checkboxField"
     >
       <input
-        aria-describedby="_r_2_"
         id="debugTileLayout"
         type="checkbox"
       />
@@ -81,7 +79,6 @@ exports[`DeveloperSettingsTab > renders and matches snapshot 1`] = `
       class="field checkboxField"
     >
       <input
-        aria-describedby="_r_3_"
         id="showConnectionStats"
         type="checkbox"
       />
@@ -118,7 +115,6 @@ exports[`DeveloperSettingsTab > renders and matches snapshot 1`] = `
       class="field checkboxField"
     >
       <input
-        aria-describedby="_r_4_"
         id="muteAllAudio"
         type="checkbox"
       />
@@ -156,7 +152,6 @@ exports[`DeveloperSettingsTab > renders and matches snapshot 1`] = `
       class="field checkboxField"
     >
       <input
-        aria-describedby="_r_5_"
         id="alwaysShowIphoneEarpiece"
         type="checkbox"
       />

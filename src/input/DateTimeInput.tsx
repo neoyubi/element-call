@@ -142,7 +142,9 @@ export const DateTimeInput: FC<DateTimeInputProps> = ({
     (event: ClipboardEvent<HTMLInputElement>): void => {
       event.preventDefault();
       caretToEnd.current = true;
-      commit(parsePasted(event.clipboardData.getData("text")).slice(0, capacity));
+      commit(
+        parsePasted(event.clipboardData.getData("text")).slice(0, capacity),
+      );
     },
     [capacity, commit, parsePasted],
   );
