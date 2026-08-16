@@ -264,6 +264,14 @@ than snapping in where the fields were. */
   margin-block: 0;
 }
 
+/* The heading takes focus when the meeting is booked, so the keyboard lands on
+the confirmation rather than on the submit button that just unmounted. It is not
+tab-reachable and nothing about it is actionable, so the user agent's focus ring
+would only advertise a control that isn't there. */
+.successTitle:focus {
+  outline: none;
+}
+
 .successIcon {
   color: var(--cpd-color-icon-success-primary);
   flex-shrink: 0;
