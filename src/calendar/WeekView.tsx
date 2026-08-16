@@ -102,13 +102,16 @@ export const WeekView: FC<Props> = ({
   );
 
   // Open on the working day rather than on midnight, without hiding anything:
-  // the whole 24 hours stay scrollable.
+  // the whole 24 hours stay scrollable. The day headings stay put, so the
+  // offset is measured against one day's rows rather than the whole grid.
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const columnRef = useRef<HTMLDivElement>(null);
   const dayStart = hours.start;
   useEffect(() => {
     const scroller = scrollerRef.current;
-    if (scroller === null) return;
-    scroller.scrollTop = (scroller.scrollHeight * dayStart) / 24;
+    const column = columnRef.current;
+    if (scroller === null || column === null) return;
+    scroller.scrollTop = (column.clientHeight * dayStart) / 24;
   }, [dayStart]);
 
   const onSlotClick = useCallback(
@@ -138,6 +141,7 @@ export const WeekView: FC<Props> = ({
   return (
     <div
       className={styles.week}
+      ref={scrollerRef}
       style={{ "--calendar-day-count": columns.length } as WeekCSSProperties}
     >
       <div className={styles.headers}>
@@ -182,7 +186,7 @@ export const WeekView: FC<Props> = ({
           </div>
         ))}
       </div>
-      <div className={styles.scroller} ref={scrollerRef}>
+      <div className={styles.grid}>
         <div className={styles.gutter} aria-hidden>
           {HOURS.map((hour) => (
             <span key={hour} className={styles.hourLabel}>
@@ -191,7 +195,11 @@ export const WeekView: FC<Props> = ({
           ))}
         </div>
         {columns.map((day, dayIndex) => (
-          <div key={day.getTime()} className={styles.column}>
+          <div
+            key={day.getTime()}
+            className={styles.column}
+            ref={dayIndex === 0 ? columnRef : undefined}
+          >
             {HOURS.map((hour) => (
               <div
                 key={hour}
