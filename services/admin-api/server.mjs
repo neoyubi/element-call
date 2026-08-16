@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { createHmac, randomBytes, pbkdf2 } from "node:crypto";
+import { randomBytes, pbkdf2 } from "node:crypto";
 
 import { authorizeRequest } from "./auth.mjs";
 import { buildVEvent } from "./ics.mjs";
@@ -17,7 +17,6 @@ const SERVER_NAME = process.env.SERVER_NAME;
 const ELEMENT_CALL_BASE_URL = process.env.ELEMENT_CALL_BASE_URL;
 const API_KEY = process.env.ADMIN_API_KEY;
 const PORT = parseInt(process.env.PORT || "6091", 10);
-const REGISTRATION_SHARED_SECRET = process.env.REGISTRATION_SHARED_SECRET;
 
 // Room whose joined members are allowed to schedule meetings with their own
 // Matrix access token (the browser auth path). When unset, only the static

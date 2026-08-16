@@ -6,7 +6,6 @@ const BOT_ACCESS_TOKEN = process.env.BOT_ACCESS_TOKEN;
 const SERVER_NAME = process.env.SERVER_NAME;
 const MEETING_STATE_TYPE =
   process.env.MEETING_STATE_TYPE || "io.element.call.scheduled_meeting";
-const ELEMENT_CALL_BASE_URL = process.env.ELEMENT_CALL_BASE_URL;
 
 const CALDAV_URL_BASE = process.env.CALDAV_URL_BASE;
 const CALDAV_USER = process.env.CALDAV_USER;
