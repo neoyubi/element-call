@@ -39,7 +39,9 @@ Please see LICENSE in the repository root for full details.
 .inputField input,
 .inputField textarea {
   font-weight: 400;
-  font-size: var(--font-size-body);
+  /* Anything below 16px makes mobile Safari zoom the page on focus, and never
+  zoom back out. */
+  font-size: max(16px, var(--font-size-body));
   border: none;
   border-radius: 4px;
   padding: 12px 9px 10px 9px;
@@ -97,7 +99,13 @@ Please see LICENSE in the repository root for full details.
 }
 
 .inputField:focus-within {
-  border-color: var(--cpd-color-text-link-external);
+  border-color: var(--cpd-color-border-focused);
+}
+
+/* A border colour change alone is not a sufficient focus indicator */
+.inputField:has(:focus-visible) {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-border-width-1);
 }
 
 .inputField input:focus,
@@ -158,9 +166,10 @@ Please see LICENSE in the repository root for full details.
   flex-shrink: 0;
   height: 16px;
   width: 16px;
-  border: 1.5px solid rgba(185, 190, 198, 0.5);
+  border: var(--cpd-border-width-1) solid
+    var(--cpd-color-border-interactive-primary);
   box-sizing: border-box;
-  border-radius: 4px;
+  border-radius: var(--cpd-space-1x);
   margin-right: 10px;
 }
 
@@ -191,7 +200,12 @@ Please see LICENSE in the repository root for full details.
 }
 
 .checkboxField:focus-within .checkbox {
-  border: 1.5px solid var(--cpd-color-text-link-external) !important;
+  border-color: var(--cpd-color-border-focused);
+}
+
+.checkboxField:has(:focus-visible) .checkbox {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-border-width-1);
 }
 
 .errorMessage {
@@ -209,4 +223,13 @@ Please see LICENSE in the repository root for full details.
 
 .description.noLabel {
   margin-top: -20px; /* Ensures that there is no weired spacing if the checkbox doesn't have a label */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inputField,
+  .inputField input::placeholder,
+  .inputField textarea::placeholder,
+  .inputField label {
+    transition-duration: 0s;
+  }
 }
