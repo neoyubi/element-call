@@ -21,6 +21,8 @@ jobs:
         run: "yarn install --immutable"
       - name: Vitest
         run: "yarn run test:coverage"
+      - name: Service tests
+        run: "yarn run test:services"
       - name: Upload to codecov
         uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5
         env:

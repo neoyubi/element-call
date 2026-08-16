@@ -27,6 +27,7 @@
     "i18n:check": "i18next --fail-on-warnings --fail-on-update",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
+    "test:services": "node --test 'services/**/*.test.mjs'",
     "backend": "docker-compose -f dev-backend-docker-compose.yml up",
     "backend-playwright": "docker-compose -f playwright-backend-docker-compose.yml -f playwright-backend-docker-compose.override.yml up",
     "test:playwright": "playwright test",
