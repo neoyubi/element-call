@@ -45,11 +45,7 @@ export const RageshakeButton: FC<Props> = ({ description }) => {
     }
 
     logsComponent = (
-      <Button
-        onClick={sendDebugLogs}
-        className={styles.wideButton}
-        disabled={sending}
-      >
+      <Button onClick={sendDebugLogs} disabled={sending}>
         {caption}
       </Button>
     );
