@@ -155,6 +155,51 @@ yarn test:services
 Node's own test runner over `services/**/*.test.mjs`. No network, no
 homeserver and no calendar server: every outbound call is stubbed.
 
+## Configuring the calendar
+
+Signed-in users get a calendar at `/calendar` with week, month, day and
+agenda views, and a compact month grid on the home page. It reads
+meetings straight out of the rooms the client has already synced, so it
+works offline and updates as changes arrive.
+
+Add a `calendar` block to `config.json` to change what the scheduling
+form offers and how the grids are laid out:
+
+```json
+{
+  "calendar": {
+    "default_timezone": "UTC",
+    "duration_options": [15, 30, 45, 60],
+    "default_duration_minutes": 30,
+    "reminder_options": [15, 30, 60, 120],
+    "default_reminder_minutes": 30,
+    "first_day_of_week": "auto",
+    "day_start_hour": 8,
+    "day_end_hour": 18
+  }
+}
+```
+
+| Key                               | Default             | Purpose                                                                                                                |
+| --------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `default_timezone`                | `UTC`               | IANA zone recorded with a meeting when the browser reports none of its own                                             |
+| `duration_options`                | `[15, 30, 45, 60]`  | Meeting lengths offered, in minutes. The shortest is also the granularity of clicking an empty slot                    |
+| `default_duration_minutes`        | `30`                | Length preselected in the form                                                                                         |
+| `reminder_options`                | `[15, 30, 60, 120]` | Reminder lead times offered, in minutes                                                                                |
+| `default_reminder_minutes`        | `30`                | Lead time preselected in the form                                                                                      |
+| `first_day_of_week`               | `auto`              | `auto` follows the reader's locale; otherwise name a day, e.g. `sunday`                                                |
+| `day_start_hour` / `day_end_hour` | `8` / `18`          | Working hours the time grid highlights and opens on. It still renders the whole day, so nothing outside them is hidden |
+
+Every field is optional, and so is the block. Dates, times, month and
+weekday names are formatted from the language the interface is running
+in, not from translations, so a new language needs no calendar strings
+beyond the labels.
+
+Two other options govern who may schedule at all: `admin_api_url` points
+at the room service, and `schedulers_room_id` names the room whose joined
+members may create, move and cancel meetings. Without both, the calendar
+is read-only and the scheduling form is hidden.
+
 ## License & source availability
 
 This is AGPL-3.0 software. If you serve a modified version to users,
