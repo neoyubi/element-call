@@ -180,17 +180,17 @@ const CallTile: FC<CallTileProps> = ({
       {isAdmin ? (
         <div className={styles.adminActions}>
           <IconButton
+            size="var(--cpd-space-11x)"
             onClick={onToggleClosed}
             disabled={isLeaving || !isJoined}
             aria-label={
-              effectiveClosed
-                ? t("room_status.reopen")
-                : t("room_status.close")
+              effectiveClosed ? t("room_status.reopen") : t("room_status.close")
             }
           >
             {effectiveClosed ? <LockSolidIcon /> : <LockOffIcon />}
           </IconButton>
           <IconButton
+            size="var(--cpd-space-11x)"
             onClick={onDeleteRoom}
             disabled={isLeaving}
             aria-label={t("room_status.delete")}
@@ -200,6 +200,7 @@ const CallTile: FC<CallTileProps> = ({
         </div>
       ) : (
         <IconButton
+          size="var(--cpd-space-11x)"
           onClick={onRemove}
           disabled={isLeaving}
           aria-label={t("action.remove")}

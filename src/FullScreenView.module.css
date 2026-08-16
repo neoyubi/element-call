@@ -14,7 +14,8 @@ Please see LICENSE in the repository root for full details.
 }
 
 .header {
-  padding: 76px 65px;
+  padding-block: 76px;
+  padding-inline: var(--inline-content-inset);
 }
 
 .container {
@@ -31,7 +32,7 @@ Please see LICENSE in the repository root for full details.
   justify-content: center;
   align-items: center;
   max-width: 660px;
-  padding: 0 65px;
+  padding-inline: var(--inline-content-inset);
 }
 
 .content > * {
@@ -41,14 +42,4 @@ Please see LICENSE in the repository root for full details.
 
 .content > :last-child {
   margin-bottom: 0;
-}
-
-/* Make the buttons the same width */
-.wideButton {
-  width: 291px;
-}
-
-/* Fixed height to avoid content jumping around*/
-.sendLogsSection {
-  height: 50px;
 }

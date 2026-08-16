@@ -3,10 +3,9 @@
   display: inline;
   z-index: 2;
   pointer-events: none;
-  width: 100vw;
-  height: 100vh;
-  left: 0;
-  top: 0;
+  /* 100vw includes the scrollbar gutter, so it overflows the window it is
+  meant to cover; the box already matches its container. */
+  inset: 0;
 }
 
 .reaction {
@@ -16,7 +15,9 @@
   animation-name: reaction-up;
   width: fit-content;
   position: relative;
-  top: 80vh;
+  /* Dynamic viewport units, so a collapsing mobile toolbar doesn't start the
+  reaction below the visible area */
+  top: 80dvh;
 }
 
 @keyframes reaction-up {
@@ -24,7 +25,7 @@
     opacity: 1;
     translate: 0 0;
     scale: 200%;
-    top: 80vh;
+    top: 80dvh;
   }
 
   to {

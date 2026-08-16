@@ -28,6 +28,23 @@ Please see LICENSE in the repository root for full details.
   color: var(--cpd-color-theme-primary) !important;
 }
 
+.recents {
+  color: var(--cpd-color-text-primary);
+  font: var(--cpd-font-body-md-medium);
+  text-decoration: none;
+}
+
+@media (hover: hover) {
+  .recents:hover {
+    text-decoration: underline;
+  }
+}
+
+.recents:focus-visible {
+  outline: var(--cpd-border-width-2) solid var(--cpd-color-border-focused);
+  outline-offset: var(--cpd-space-0-5x);
+}
+
 @media (max-width: 500px) {
   .join {
     width: 100%;

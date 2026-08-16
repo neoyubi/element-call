@@ -7,7 +7,6 @@ Please see LICENSE in the repository root for full details.
 
 .headline {
   text-align: center;
-  margin-bottom: 60px;
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
@@ -45,8 +44,6 @@ Please see LICENSE in the repository root for full details.
 .submitButton {
   width: 100%;
   margin-top: 54px;
-  margin-left: 30px;
-  margin-right: 30px !important;
 }
 
 .container {

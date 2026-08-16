@@ -68,7 +68,8 @@ Please see LICENSE in the repository root for full details.
   gap: 24px;
   padding: 0 24px;
   justify-content: center;
-  margin-bottom: 24px;
+  /* Clear of the fixed licence footer, which reserves no space of its own */
+  margin-bottom: var(--cpd-space-12x);
 }
 
 .disabled {

@@ -187,7 +187,7 @@ export const LobbyView: FC<Props> = ({
   // animations and don't have to feel bad about reusing its CSS
   return (
     <>
-      <div className={classNames(styles.room, inCallStyles.inRoom)}>
+      <div className={inCallStyles.inRoom}>
         {!hideHeader && (
           <Header>
             <LeftNav>
