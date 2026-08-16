@@ -469,7 +469,7 @@ export const ScheduleMeetingForm: FC<Props> = ({
   if (result !== undefined) {
     const when = new Date(result.start);
     return (
-      <div className={styles.wrapper}>
+      <div className={styles.wrapper} data-modal-fit="content">
         <div
           className={
             onDone ? `${styles.container} ${styles.bare}` : styles.container
@@ -552,7 +552,7 @@ export const ScheduleMeetingForm: FC<Props> = ({
   }
 
   return (
-    <div className={styles.wrapper}>
+    <div className={styles.wrapper} data-modal-fit="content">
       <div
         className={
           onDone ? `${styles.container} ${styles.bare}` : styles.container
@@ -561,10 +561,15 @@ export const ScheduleMeetingForm: FC<Props> = ({
         <Heading size="sm" weight="semibold" className={styles.title}>
           {t("schedule_meeting.title")}
         </Heading>
+        {/* The fields keep `required` for assistive technology, but the browser
+        does not get to act on it: native validation would pre-empt this form's
+        own checks with a bubble that looks nothing like the rest, and would
+        stop the submit handler from ever seeing an empty field. */}
         <form
           className={styles.form}
           onSubmit={onSubmit}
           aria-busy={submitting}
+          noValidate
         >
           <InputField
             id={nameId}
@@ -575,7 +580,7 @@ export const ScheduleMeetingForm: FC<Props> = ({
             placeholder={t("schedule_meeting.name_label")}
             value={inviteeName}
             disabled={submitting}
-            description={errors.name}
+            error={errors.name}
             onChange={(e) => setInviteeName(e.target.value)}
             onBlur={() => onFieldBlur("name")}
           />
@@ -590,7 +595,7 @@ export const ScheduleMeetingForm: FC<Props> = ({
               placeholder={t("schedule_meeting.email_label")}
               value={inviteeEmail}
               disabled={submitting}
-              description={errors.email}
+              error={errors.email}
               onChange={(e) => setInviteeEmail(e.target.value)}
               onBlur={() => onFieldBlur("email")}
             />
@@ -644,94 +649,106 @@ export const ScheduleMeetingForm: FC<Props> = ({
               ` ${t("schedule_meeting.context_organizer", { email: organizerEmail })}`}
           </p>
 
-          <button
-            type="button"
-            className={styles.disclosure}
-            aria-expanded={advancedOpen}
-            aria-controls={advancedId}
-            onClick={() => setAdvancedOpen(!advancedOpen)}
-          >
-            <ChevronDownIcon
-              width={16}
-              height={16}
-              className={
-                advancedOpen
-                  ? `${styles.disclosureIcon} ${styles.disclosureIconOpen}`
-                  : styles.disclosureIcon
-              }
-            />
-            {advancedOpen
-              ? t("schedule_meeting.fewer_options")
-              : t("schedule_meeting.more_options")}
-          </button>
+          <div className={styles.disclosureGroup}>
+            <button
+              type="button"
+              className={styles.disclosure}
+              aria-expanded={advancedOpen}
+              aria-controls={advancedId}
+              onClick={() => setAdvancedOpen(!advancedOpen)}
+            >
+              <ChevronDownIcon
+                width={16}
+                height={16}
+                className={
+                  advancedOpen
+                    ? `${styles.disclosureIcon} ${styles.disclosureIconOpen}`
+                    : styles.disclosureIcon
+                }
+              />
+              {advancedOpen
+                ? t("schedule_meeting.fewer_options")
+                : t("schedule_meeting.more_options")}
+            </button>
 
-          {/* Mounted only while open, so nothing is hidden but still
-          focusable; aria-expanded already carries the state. */}
-          {advancedOpen && (
-            <div id={advancedId} className={styles.advanced}>
-              <div className={styles.group}>
-                {chipGroup(
-                  "reminder",
-                  t("schedule_meeting.reminder"),
-                  [0, ...reminderOptions],
-                  reminder,
-                  setReminder,
-                  (minutes) =>
-                    minutes === 0
-                      ? t("schedule_meeting.reminder_none")
-                      : shortLength(minutes),
-                )}
-                <p className={styles.help}>
-                  {t("schedule_meeting.reminder_help")}
-                </p>
-              </div>
-
-              <div className={styles.group}>
-                <label className={styles.groupLabel} htmlFor="scheduleTimezone">
-                  {t("schedule_meeting.timezone")}
-                </label>
-                {/* Native rather than a menu component: a list this long is
-                only usable with the type-ahead a native select gives free, and
-                on a phone it opens the system wheel. */}
-                <select
-                  id="scheduleTimezone"
-                  className={styles.select}
-                  value={timezone}
-                  disabled={submitting}
-                  onChange={(e) => setTimezone(e.target.value)}
-                >
-                  {timezoneOptions.map((zone) => (
-                    <option key={zone} value={zone}>
-                      {zone}
-                    </option>
-                  ))}
-                </select>
-                <p className={styles.help}>
-                  {t("schedule_meeting.timezone_help")}
-                </p>
-              </div>
-
-              {!organizerEmailDerived && (
+            {/* Kept mounted so the panel can grow and shrink rather than
+            appear, which would shove the submit button under the pointer.
+            `inert` keeps the collapsed panel out of the tab order and out of
+            the accessibility tree, which is what unmounting used to buy. */}
+            <div
+              id={advancedId}
+              className={styles.advancedPanel}
+              data-open={advancedOpen}
+              inert={!advancedOpen}
+            >
+              <div className={styles.advanced}>
                 <div className={styles.group}>
-                  <InputField
-                    id={organizerId}
-                    name="organizerEmail"
-                    type="email"
-                    label={t("schedule_meeting.organizer_label")}
-                    placeholder={t("schedule_meeting.organizer_label")}
-                    value={organizerEmail}
-                    disabled={submitting}
-                    description={errors.organizer}
-                    onChange={(e) => setOrganizerEmail(e.target.value)}
-                    onBlur={() => onFieldBlur("organizer")}
-                  />
+                  {chipGroup(
+                    "reminder",
+                    t("schedule_meeting.reminder"),
+                    [0, ...reminderOptions],
+                    reminder,
+                    setReminder,
+                    (minutes) =>
+                      minutes === 0
+                        ? t("schedule_meeting.reminder_none")
+                        : shortLength(minutes),
+                  )}
                   <p className={styles.help}>
-                    {t("schedule_meeting.organizer_help")}
+                    {t("schedule_meeting.reminder_help")}
                   </p>
                 </div>
-              )}
+
+                <div className={styles.group}>
+                  <label
+                    className={styles.groupLabel}
+                    htmlFor="scheduleTimezone"
+                  >
+                    {t("schedule_meeting.timezone")}
+                  </label>
+                  {/* Native rather than a menu component: a list this long is
+                  only usable with the type-ahead a native select gives free,
+                  and on a phone it opens the system wheel. */}
+                  <select
+                    id="scheduleTimezone"
+                    className={styles.select}
+                    value={timezone}
+                    disabled={submitting}
+                    onChange={(e) => setTimezone(e.target.value)}
+                  >
+                    {timezoneOptions.map((zone) => (
+                      <option key={zone} value={zone}>
+                        {zone}
+                      </option>
+                    ))}
+                  </select>
+                  <p className={styles.help}>
+                    {t("schedule_meeting.timezone_help")}
+                  </p>
+                </div>
+
+                {!organizerEmailDerived && (
+                  <div className={styles.group}>
+                    <InputField
+                      id={organizerId}
+                      name="organizerEmail"
+                      type="email"
+                      label={t("schedule_meeting.organizer_label")}
+                      placeholder={t("schedule_meeting.organizer_label")}
+                      value={organizerEmail}
+                      disabled={submitting}
+                      error={errors.organizer}
+                      onChange={(e) => setOrganizerEmail(e.target.value)}
+                      onBlur={() => onFieldBlur("organizer")}
+                    />
+                    <p className={styles.help}>
+                      {t("schedule_meeting.organizer_help")}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+          </div>
 
           {submitError !== undefined && (
             <p className={styles.error} role="alert">

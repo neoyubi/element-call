@@ -10,6 +10,9 @@
   padding: var(--cpd-space-4x);
   border-radius: 8px;
   background-color: var(--cpd-color-bg-subtle-secondary);
+  /* The floating labels punch through the field borders and have to be painted
+  in the colour of the card behind them, not the app canvas. */
+  --input-label-surface: var(--cpd-color-bg-subtle-secondary);
 }
 
 /* Inside a modal the surrounding dialog supplies the surface and the padding,
@@ -17,6 +20,7 @@ so the card sheds both rather than drawing a second one. */
 .bare {
   padding: 0;
   background-color: transparent;
+  --input-label-surface: var(--cpd-color-bg-canvas-default);
 }
 
 .title {
@@ -141,6 +145,13 @@ accessibility tree and out of the tab order along with it. */
   font: var(--cpd-font-body-xs-regular);
 }
 
+/* The toggle and the panel it controls move as one, so the space between them
+can belong to the panel and collapse along with it. */
+.disclosureGroup {
+  display: flex;
+  flex-direction: column;
+}
+
 .disclosure {
   display: inline-flex;
   align-items: center;
@@ -168,16 +179,38 @@ accessibility tree and out of the tab order along with it. */
   transform: rotate(180deg);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .disclosureIcon {
-    transition: none;
-  }
+/* A single-track grid animated between 0fr and 1fr is the only way to ease a
+box between zero and its natural height without measuring it. */
+.advancedPanel {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 180ms ease;
+}
+
+.advancedPanel[data-open="true"] {
+  grid-template-rows: 1fr;
 }
 
 .advanced {
   display: flex;
   flex-direction: column;
   gap: var(--cpd-space-5x);
+  /* Inside the collapsing box, so the gap under the toggle exists only when
+  the panel does. */
+  padding-block-start: var(--cpd-space-5x);
+  /* A grid item refuses to shrink below its content unless told to, and the
+  overflow has to be hidden while it does. The clip margin leaves the focus
+  rings of the controls at the edges room to show. */
+  min-block-size: 0;
+  overflow: clip;
+  overflow-clip-margin: var(--cpd-space-1x);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosureIcon,
+  .advancedPanel {
+    transition: none;
+  }
 }
 
 .select {
@@ -197,10 +230,31 @@ accessibility tree and out of the tab order along with it. */
   outline-offset: var(--cpd-border-width-1);
 }
 
+/* The confirmation replaces the whole form, so it settles into place rather
+than snapping in where the fields were. */
+@keyframes confirm-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--cpd-space-2x));
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .success {
   display: flex;
   flex-direction: column;
   gap: var(--cpd-space-4x);
+  animation: confirm-in 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .success {
+    animation: none;
+  }
 }
 
 .successTitle {
