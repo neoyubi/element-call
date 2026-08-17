@@ -261,7 +261,10 @@ export const WeekView: FC<Props> = ({
         queued: false,
         frame: null,
       };
-      column.setPointerCapture?.(e.pointerId);
+      // Capture waits until the press becomes a drag. Capturing at the press
+      // would retarget the eventual click at the column, and the slot button
+      // underneath — the one that opens the form on a plain click — would
+      // never hear it.
     },
     [canSchedule, slotMinutes],
   );
@@ -274,6 +277,9 @@ export const WeekView: FC<Props> = ({
       if (!gesture.dragging) {
         if (Math.abs(e.clientY - gesture.originY) < DRAG_THRESHOLD) return;
         gesture.dragging = true;
+        // Take the pointer only now that this is a drag, so the column keeps
+        // receiving moves outside its own box until release.
+        gesture.column.setPointerCapture?.(gesture.pointerId);
       }
       // Pointer moves arrive far faster than the grid can usefully be
       // redrawn, so at most one redraw is queued per frame. The flag is
